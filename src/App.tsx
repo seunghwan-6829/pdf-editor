@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { generatePdfFromElement, generateLargePdf } from './pdf/pdfGenerator'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { generatePdfFromElement } from './pdf/pdfGenerator'
 import { initSupabase, fetchProjects, saveProject, deleteProjectFromDB, ProjectRow } from './lib/supabase'
 import './App.css'
 
