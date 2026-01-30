@@ -271,35 +271,30 @@ export default function App() {
   // 미리보기 영역 포커스 상태
   const [isPreviewFocused, setIsPreviewFocused] = useState(false)
 
-  // Ctrl+Z / Ctrl+Y (미리보기 영역 포커스 시에만)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 미리보기 영역에 포커스가 있을 때만 동작
-      if (!isPreviewFocused) return
-      
-      // 텍스트 입력 중이면 무시
-      if (editingBlockId) return
-      
-      if (e.ctrlKey && e.key === 'z') {
-        e.preventDefault()
-        if (historyIndex > 0) {
-          const newIndex = historyIndex - 1
-          setHistoryIndex(newIndex)
-          setPages(JSON.parse(JSON.stringify(history[newIndex])))
-        }
-      }
-      if (e.ctrlKey && e.key === 'y') {
-        e.preventDefault()
-        if (historyIndex < history.length - 1) {
-          const newIndex = historyIndex + 1
-          setHistoryIndex(newIndex)
-          setPages(JSON.parse(JSON.stringify(history[newIndex])))
-        }
+  // 미리보기 영역 Ctrl+Z / Ctrl+Y 핸들러
+  const handlePreviewKeyDown = (e: React.KeyboardEvent) => {
+    // 텍스트 입력 중이면 무시
+    if (editingBlockId) return
+    
+    if (e.ctrlKey && e.key === 'z') {
+      e.preventDefault()
+      e.stopPropagation()
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1
+        setHistoryIndex(newIndex)
+        setPages(JSON.parse(JSON.stringify(history[newIndex])))
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [history, historyIndex, isPreviewFocused, editingBlockId])
+    if (e.ctrlKey && e.key === 'y') {
+      e.preventDefault()
+      e.stopPropagation()
+      if (historyIndex < history.length - 1) {
+        const newIndex = historyIndex + 1
+        setHistoryIndex(newIndex)
+        setPages(JSON.parse(JSON.stringify(history[newIndex])))
+      }
+    }
+  }
 
   // 텍스트 입력 시 전체선택
   useEffect(() => {
@@ -1327,9 +1322,9 @@ ${tocText}
           className={`preview-section ${isPreviewFocused ? 'focused' : ''}`} 
           ref={previewRef} 
           tabIndex={0}
+          onKeyDown={handlePreviewKeyDown}
           onFocus={() => setIsPreviewFocused(true)}
           onBlur={(e) => {
-            // 내부 요소로 포커스 이동 시 blur 무시
             if (previewRef.current?.contains(e.relatedTarget as Node)) return
             setIsPreviewFocused(false)
           }}
