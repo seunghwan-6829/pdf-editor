@@ -1081,6 +1081,70 @@ body {
   transition: all 0.15s;
 }
 
+/* AI 추가 섹션 체크박스 */
+.extra-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* 복사/붙여넣기 플로팅 버튼 */
+.floating-actions {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+  background: var(--surface);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  z-index: 100;
+}
+
+.floating-btn {
+  padding: 0.4rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.floating-btn:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+.floating-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.floating-btn.danger:hover:not(:disabled) {
+  background: var(--danger);
+}
+
 /* 리사이즈 핸들 */
 .resize-handle {
   position: absolute;

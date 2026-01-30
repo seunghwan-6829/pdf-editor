@@ -187,6 +187,11 @@ export default function App() {
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0, status: '' })
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   
+  // 프롤로그, 목차, 에필로그 옵션
+  const [includePrologue, setIncludePrologue] = useState(false)
+  const [includeToc, setIncludeToc] = useState(false)
+  const [includeEpilogue, setIncludeEpilogue] = useState(false)
+  
   const [pages, setPages] = useState<Page[]>([])
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([])
@@ -543,6 +548,56 @@ export default function App() {
     let currentChapterIdx = -1
 
     try {
+      // 프롤로그 생성
+      if (includePrologue) {
+        setGenerationProgress({ current: 0, total: totalItems, chapterName: '프롤로그 생성 중...' })
+        const prologuePrompt = `"${bookTitle}" 전자책의 프롤로그를 작성해주세요.
+
+【작성 규칙】
+- 독자의 관심을 끄는 흥미로운 시작
+- 이 책을 쓰게 된 이유와 배경
+- 독자가 얻을 수 있는 가치
+- 3-4개 문단으로 구성
+- > 콜아웃으로 핵심 메시지 강조
+
+주제: ${prompt}
+
+## 프롤로그
+
+`
+        const prologueResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: prologuePrompt }],
+          }),
+        })
+        if (prologueResponse.ok) {
+          const data = await prologueResponse.json()
+          allContent = `## 프롤로그\n\n${data.content[0].text}\n\n`
+          const newPages = parseMarkdownToPages(allContent, previewSize)
+          setPages(newPages)
+        }
+      }
+
+      // 목차 페이지 생성
+      if (includeToc) {
+        const tocContent = `## 목차\n\n${validChapters.map((ch, i) => {
+          const subs = ch.subItems.filter(s => s.title.trim())
+          return `### ${i + 1}. ${ch.title}\n${subs.map((s, j) => `   ${i + 1}.${j + 1} ${s.title}`).join('\n')}`
+        }).join('\n\n')}\n\n`
+        allContent += tocContent
+        const newPages = parseMarkdownToPages(allContent, previewSize)
+        setPages(newPages)
+      }
+
       for (let i = 0; i < generationPlan.length; i++) {
         const item = generationPlan[i]
         const isNewChapter = item.chapterIdx !== currentChapterIdx
@@ -665,6 +720,46 @@ export default function App() {
         }
 
         allContent += (allContent ? '\n\n' : '') + sectionContent
+      }
+
+      // 에필로그 생성
+      if (includeEpilogue) {
+        setGenerationProgress({ current: totalItems, total: totalItems, chapterName: '에필로그 생성 중...' })
+        const epiloguePrompt = `"${bookTitle}" 전자책의 에필로그를 작성해주세요.
+
+【작성 규칙】
+- 책의 핵심 내용 요약
+- 독자에게 전하는 마지막 메시지
+- 앞으로의 실천 방향 제시
+- 감사 인사
+- 3-4개 문단으로 구성
+- > 콜아웃으로 핵심 메시지 강조
+
+주제: ${prompt}
+
+## 에필로그
+
+`
+        const epilogueResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: epiloguePrompt }],
+          }),
+        })
+        if (epilogueResponse.ok) {
+          const data = await epilogueResponse.json()
+          allContent += `\n\n## 에필로그\n\n${data.content[0].text}`
+          const newPages = parseMarkdownToPages(allContent, previewSize)
+          setPages(newPages)
+        }
       }
 
       // 완료 후 히스토리 저장
@@ -1773,9 +1868,6 @@ ${tocText}
           </div>
           <div className="header-right">
             {isSupabaseConnected && <span className="status-badge">🟢 DB 연결됨</span>}
-            <button className="btn btn-ghost btn-sm" onClick={toggleTheme} title="테마 변경">
-              {theme === 'dark' ? '☀️' : '🌙'}
-            </button>
             <button className="btn btn-primary" onClick={createNewProject}>+ 새 프로젝트</button>
           </div>
         </header>
@@ -1863,10 +1955,10 @@ ${tocText}
                 }
               }} 
               disabled={historyIndex <= 0}
-              className="btn btn-ghost btn-sm"
-              title="뒤로 (Ctrl+Z)"
+              className="tool-btn"
+              title="뒤로"
             >
-              ↩️ 뒤로
+              ↩️
             </button>
             <button 
               onClick={() => {
@@ -1877,10 +1969,10 @@ ${tocText}
                 }
               }}
               disabled={historyIndex >= history.length - 1}
-              className="btn btn-ghost btn-sm"
-              title="앞으로 (Ctrl+Y)"
+              className="tool-btn"
+              title="앞으로"
             >
-              앞으로 ↪️
+              ↪️
             </button>
           </div>
           
@@ -1962,6 +2054,9 @@ ${tocText}
             </div>
           )}
           
+        </div>
+        
+        <div className="header-right">
           {/* 페이지 네비게이션 */}
           {pages.length > 0 && (
             <div className="page-nav-inline">
@@ -1970,10 +2065,6 @@ ${tocText}
               <button onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))} disabled={currentPageIndex >= pages.length - 1}>▶</button>
             </div>
           )}
-        </div>
-        
-        <div className="header-right">
-          <span className="shortcut-hint">Ctrl+Z: 되돌리기</span>
           <button onClick={() => setIsEditing(!isEditing)} disabled={pages.length === 0} className={`btn btn-sm ${isEditing ? 'btn-warning' : 'btn-secondary'}`}>
             {isEditing ? '✓ 완료' : '✏️ 편집'}
           </button>
@@ -1982,9 +2073,6 @@ ${tocText}
           </button>
           <button className="btn btn-sm btn-primary" onClick={saveCurrentProject} disabled={pages.length === 0 || isSaving}>
             {isSaving ? '...' : '💾 저장'}
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={toggleTheme} title="테마 변경">
-            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowApiKey(!showApiKey)}>⚙️</button>
         </div>
@@ -2074,9 +2162,28 @@ ${tocText}
                 <input type="number" min="1" max="50" value={pageCount} onChange={(e) => setPageCount(e.target.value)} className="input-compact" placeholder="페이지 수" style={{marginTop: '0.5rem'}} />
               </div>
               
+              {/* AI 추가 섹션 옵션 */}
+              <div className="section-block">
+                <h3 className="section-label">📄 AI 추가 섹션</h3>
+                <div className="extra-sections">
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={includePrologue} onChange={(e) => setIncludePrologue(e.target.checked)} />
+                    <span>프롤로그</span>
+                  </label>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={includeToc} onChange={(e) => setIncludeToc(e.target.checked)} />
+                    <span>목차 페이지</span>
+                  </label>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={includeEpilogue} onChange={(e) => setIncludeEpilogue(e.target.checked)} />
+                    <span>에필로그</span>
+                  </label>
+                </div>
+              </div>
+              
               <div className="section-block toc-section">
                 <div className="toc-header">
-                  <h3>📑 목차</h3>
+                  <h3>📑 챕터 구성</h3>
                   <button onClick={addChapter} className="btn-mini-add" title="챕터 추가">+</button>
                 </div>
                 <div className="toc-list">
@@ -2146,6 +2253,67 @@ ${tocText}
             </div>
           )}
         </div>
+
+        {/* 복사/붙여넣기 플로팅 버튼 */}
+        {selectedBlockIds.length > 0 && (
+          <div className="floating-actions">
+            <button 
+              onClick={() => {
+                if (currentPage) {
+                  const blocksToCopy = currentPage.blocks.filter(b => selectedBlockIds.includes(b.id))
+                  if (blocksToCopy.length > 0) {
+                    setClipboardBlocks(JSON.parse(JSON.stringify(blocksToCopy)))
+                  }
+                }
+              }}
+              className="floating-btn"
+              title="복사"
+            >
+              📋 복사
+            </button>
+            <button 
+              onClick={() => {
+                if (clipboardBlocks.length > 0 && pages.length > 0) {
+                  const newBlocks = clipboardBlocks.map(b => ({
+                    ...b,
+                    id: generateId(),
+                  }))
+                  const newPages = [...pages]
+                  newPages[currentPageIndex] = {
+                    ...newPages[currentPageIndex],
+                    blocks: [...newPages[currentPageIndex].blocks, ...newBlocks]
+                  }
+                  setPages(newPages)
+                  saveToHistory(newPages)
+                  setSelectedBlockIds(newBlocks.map(b => b.id))
+                }
+              }}
+              className="floating-btn"
+              disabled={clipboardBlocks.length === 0}
+              title="붙여넣기"
+            >
+              📄 붙여넣기
+            </button>
+            <button 
+              onClick={() => {
+                if (selectedBlockIds.length > 0 && currentPage) {
+                  const newPages = [...pages]
+                  newPages[currentPageIndex] = {
+                    ...newPages[currentPageIndex],
+                    blocks: newPages[currentPageIndex].blocks.filter(b => !selectedBlockIds.includes(b.id))
+                  }
+                  setPages(newPages)
+                  saveToHistory(newPages)
+                  setSelectedBlockIds([])
+                }
+              }}
+              className="floating-btn danger"
+              title="삭제"
+            >
+              🗑️ 삭제
+            </button>
+          </div>
+        )}
 
         <div 
           className={`preview-section ${isPreviewFocused ? 'focused' : ''}`} 
@@ -2279,20 +2447,25 @@ ${tocText}
                     ) : block.type === 'highlight' ? (
                       <div className="highlight-box">{block.content}</div>
                     ) : block.type === 'shape' ? (
-                      <div 
-                        className="shape-box"
-                        style={{
-                          width: '100%',
-                          height: block.width * 0.7,
-                          background: block.style?.fill || '#3b82f6',
-                          border: `${block.style?.strokeWidth || 2}px solid ${block.style?.stroke || '#1d4ed8'}`,
-                          borderRadius: block.style?.shapeType === 'circle' ? '50%' : '8px',
-                        }}
-                      />
+                      <>
+                        <div 
+                          className="shape-box"
+                          style={{
+                            width: '100%',
+                            height: block.width * 0.7,
+                            background: block.style?.fill || '#3b82f6',
+                            border: `${block.style?.strokeWidth || 2}px solid ${block.style?.stroke || '#1d4ed8'}`,
+                            borderRadius: block.style?.shapeType === 'circle' ? '50%' : '8px',
+                          }}
+                        />
+                        {isEditing && selectedBlockIds.includes(block.id) && !block.locked && (
+                          <div className="resize-handle" onMouseDown={(e) => handleResizeStart(e, block)} />
+                        )}
+                      </>
                     ) : block.type === 'list' ? (
                       <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
                     ) : (
-                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
+                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
                     )}
                     {block.locked && <span className="lock-indicator">🔒</span>}
                   </div>
@@ -2376,7 +2549,7 @@ ${tocText}
                     ) : block.type === 'list' ? (
                       <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
                     ) : (
-                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
+                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
                     )}
                   </div>
                 ))}
