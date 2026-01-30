@@ -156,7 +156,6 @@ export default function App() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [isLoadingProjects, setIsLoadingProjects] = useState(false)
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false)
-  const theme = 'dark' // 다크모드 고정
   
   const [mode, setMode] = useState<Mode>('ebook')
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('claude_api_key') || '')
