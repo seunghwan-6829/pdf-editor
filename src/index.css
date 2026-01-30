@@ -1,0 +1,32 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #1a1b1e;
+  --surface: #25262b;
+  --border: #373a40;
+  --text: #e9ecef;
+  --muted: #868e96;
+  --accent: #4dabf7;
+  --accent-hover: #74c0fc;
+  --edit-highlight: rgba(77, 171, 247, 0.25);
+  --font-sans: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, textarea {
+  font-family: inherit;
+}
