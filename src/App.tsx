@@ -1126,10 +1126,11 @@ ${tocText}
     const maxY = size.height * 0.85
     const x = size.width * 0.08
     
-    const pages: Page[] = []
+    // 0번 페이지는 더미 (프론트에서 숨김)
+    const pages: Page[] = [{ id: generateId(), blocks: [] }]
     let currentBlocks: Block[] = []
     let y = startY
-    let pageIdx = 0
+    let pageIdx = 1  // 1번 페이지부터 시작
     let lastWasEmpty = false
     let lastBlockType = ''
     
