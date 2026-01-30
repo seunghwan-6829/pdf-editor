@@ -230,8 +230,6 @@ export default function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark')
-
   // 목차 관리 함수들
   const addChapter = () => {
     const newId = `ch-${Date.now()}`
