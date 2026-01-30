@@ -209,6 +209,9 @@ export default function App() {
   const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 })
   const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 })
   
+  // 블록 조작 중인지 (ref로 즉시 반영)
+  const isBlockAction = useRef(false)
+  
   // 히스토리 (미리보기 전용)
   const [history, setHistory] = useState<Page[][]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -1431,12 +1434,18 @@ ${tocText}
     e.stopPropagation()
     e.preventDefault()
     
+    // 블록 조작 플래그 (즉시 반영!)
+    isBlockAction.current = true
+    
     // 모든 드래그/선택 상태 초기화
     setIsSelecting(false)
     setIsDragging(false)
     
     const block = currentPage?.blocks.find(b => b.id === blockId)
-    if (block?.locked) return
+    if (block?.locked) {
+      isBlockAction.current = false
+      return
+    }
     
     if (e.shiftKey) {
       // Shift+클릭: 다중 선택
@@ -1447,6 +1456,9 @@ ${tocText}
       // 단일 선택 - 무조건 이 블록만!
       setSelectedBlockIds([blockId])
     }
+    
+    // 다음 틱에서 플래그 해제
+    setTimeout(() => { isBlockAction.current = false }, 0)
   }
 
   // 블록 더블클릭
@@ -1489,6 +1501,9 @@ ${tocText}
     e.preventDefault()
     e.stopPropagation()
     
+    // 블록 조작 플래그 (즉시 반영!)
+    isBlockAction.current = true
+    
     // 드래그 선택 완전 중지!
     setIsSelecting(false)
     setSelectionStart({ x: 0, y: 0 })
@@ -1517,6 +1532,9 @@ ${tocText}
   const handlePageMouseDown = (e: React.MouseEvent) => {
     if (!isEditing) return
     
+    // 블록 조작 중이면 무시! (ref로 즉시 체크)
+    if (isBlockAction.current) return
+    
     // 클릭한 요소가 정확히 book-page인지 확인 (블록이 아닌 빈 공간)
     const target = e.target as HTMLElement
     if (!target.classList.contains('book-page')) return
@@ -1539,6 +1557,10 @@ ${tocText}
   // 드래그 중
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!pageRef.current) return
+    
+    // 블록 조작 중이면 드래그 선택 무시
+    if (isBlockAction.current) return
+    
     const rect = pageRef.current.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
@@ -1663,14 +1685,17 @@ ${tocText}
     setIsResizing(false)
     setIsSelecting(false)
     setDragBlockId(null)
+    isBlockAction.current = false  // 플래그 초기화
   }
 
   // 리사이즈 시작
   const handleResizeStart = (e: React.MouseEvent, block: Block, direction: 'corner' | 'right' | 'bottom' = 'corner') => {
     e.stopPropagation()
     e.preventDefault()
+    isBlockAction.current = true  // 블록 조작 플래그
     setSelectedBlockIds([block.id])
     setIsResizing(true)
+    setIsSelecting(false)
     setResizeDirection(direction)
     const height = block.height || (block.type === 'shape' ? 70 : 100)
     setResizeStart({ x: e.clientX, y: e.clientY, width: block.width, height })
@@ -1759,6 +1784,9 @@ ${tocText}
       }
     }
     
+    // 블록 조작 플래그 ON
+    isBlockAction.current = true
+    
     // 모든 상태 완전 초기화
     setIsSelecting(false)
     setIsDragging(false)
@@ -1776,6 +1804,9 @@ ${tocText}
     
     // 즉시 새 도형만 선택!
     setSelectedBlockIds([newBlockId])
+    
+    // 잠시 후 플래그 해제
+    setTimeout(() => { isBlockAction.current = false }, 100)
   }
 
   // 뒤로 보내기 (zIndex 기반)
