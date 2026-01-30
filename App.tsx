@@ -159,7 +159,7 @@ export default function App() {
   
   const pageRef = useRef<HTMLDivElement>(null)
   const pagesContainerRef = useRef<HTMLDivElement>(null)
-  const textInputRef = useRef<HTMLInputElement>(null)
+  const textInputRef = useRef<HTMLTextAreaElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
 
   // 테마 적용
@@ -958,7 +958,7 @@ ${tocText}
   }
 
   // 텍스트 입력 클릭 (개별 선택)
-  const handleTextInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
+  const handleTextInputClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     e.stopPropagation()
     // 이미 편집 중이면 클릭 위치로 커서 이동 (기본 동작)
   }
@@ -1612,7 +1612,7 @@ ${tocText}
                   >
                     {editingBlockId === block.id ? (
                       <textarea
-                        ref={textInputRef as React.RefObject<HTMLTextAreaElement>}
+                        ref={textInputRef}
                         className="block-input block-textarea"
                         value={editingText}
                         onChange={(e) => setEditingText(e.target.value)}
