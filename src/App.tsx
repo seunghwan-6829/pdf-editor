@@ -99,6 +99,9 @@ export default function App() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [isLoadingProjects, setIsLoadingProjects] = useState(false)
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => 
+    (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
+  )
   
   const [mode, setMode] = useState<Mode>('ebook')
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('claude_api_key') || '')
@@ -141,6 +144,14 @@ export default function App() {
   const pagesContainerRef = useRef<HTMLDivElement>(null)
   const textInputRef = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
+
+  // 테마 적용
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark')
 
   // Supabase 자동 초기화
   useEffect(() => {
@@ -933,6 +944,9 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
           </div>
           <div className="header-right">
             {isSupabaseConnected && <span className="status-badge">🟢 DB 연결됨</span>}
+            <button className="btn btn-ghost btn-sm" onClick={toggleTheme} title="테마 변경">
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <button className="btn btn-primary" onClick={createNewProject}>+ 새 프로젝트</button>
           </div>
         </header>
@@ -1044,6 +1058,9 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
           <button onClick={downloadPdf} disabled={pages.length === 0} className="btn btn-sm btn-success">📥 PDF</button>
           <button className="btn btn-sm btn-primary" onClick={saveCurrentProject} disabled={pages.length === 0 || isSaving}>
             {isSaving ? '...' : '💾 저장'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={toggleTheme} title="테마 변경">
+            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowApiKey(!showApiKey)}>⚙️</button>
         </div>
