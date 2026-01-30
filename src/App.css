@@ -1247,17 +1247,23 @@ body {
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
 }
 
-/* 오른쪽 사이드바 (페이지 + 레이어) */
-.right-sidebar {
-  width: 180px;
-  min-width: 180px;
+/* 페이지 사이드바 (오른쪽 끝, 길게) */
+.pages-sidebar {
+  width: 110px;
+  min-width: 110px;
   max-height: calc(100vh - 120px);
+  background: var(--surface);
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  overflow: hidden;
 }
 
-.sidebar-section {
+/* 레이어 패널 (페이지 사이드바 왼쪽) */
+.layers-panel {
+  width: 160px;
+  min-width: 160px;
+  max-height: calc(100vh - 120px);
   background: var(--surface);
   border-radius: 8px;
   display: flex;
@@ -1277,7 +1283,7 @@ body {
 }
 
 .pages-list {
-  max-height: 200px;
+  flex: 1;
   overflow-y: auto;
   padding: 0.5rem;
   display: flex;
@@ -1330,12 +1336,7 @@ body {
   font-weight: 600;
 }
 
-/* 레이어 패널 */
-.layers-section {
-  flex: 1;
-  min-height: 0;
-}
-
+/* 레이어 목록 */
 .layers-list {
   flex: 1;
   overflow-y: auto;
@@ -1343,7 +1344,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 400px;
 }
 
 .layer-item {

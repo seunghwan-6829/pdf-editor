@@ -2674,187 +2674,178 @@ ${tocText}
           </div>
         </div>
 
-        {/* 오른쪽 사이드바: 페이지 + 레이어 */}
-        {pages.length > 0 && (
-          <div className="right-sidebar">
-            {/* 페이지 목록 */}
-            <div className="sidebar-section">
-              <div className="sidebar-header">
-                <span>📄 페이지 ({pages.length})</span>
-                <button onClick={addNewPage} className="btn-mini" title="새 페이지 추가">+</button>
-              </div>
-              <div className="pages-list">
-                {pages.map((page, idx) => (
-                  <div 
-                    key={page.id} 
-                    className={`page-thumbnail ${idx === currentPageIndex ? 'active' : ''}`}
-                    onClick={() => setCurrentPageIndex(idx)}
-                  >
-                    <div className="thumbnail-preview" style={{ 
-                      width: 60, 
-                      height: 60 * (previewSize.height / previewSize.width) 
-                    }}>
-                      <div className="thumbnail-content">
-                        {page.blocks.slice(0, 5).map(block => (
-                          <div 
-                            key={block.id} 
-                            className="thumbnail-block"
-                            style={{
-                              left: `${(block.x / previewSize.width) * 100}%`,
-                              top: `${(block.y / previewSize.height) * 100}%`,
-                              width: `${(block.width / previewSize.width) * 100}%`,
-                              height: block.type === 'heading' ? '8%' : '4%',
-                              background: block.style?.background || (block.type === 'heading' ? '#6366f1' : '#ddd'),
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <span className="thumbnail-number">{idx + 1}</span>
-                    </div>
-                    {pages.length > 1 && (
-                      <button 
-                        className="thumbnail-delete" 
-                        onClick={(e) => { e.stopPropagation(); deletePage(idx) }}
-                        title="페이지 삭제"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+        {/* 레이어 패널 (편집 모드에서만) */}
+        {pages.length > 0 && isEditing && currentPage && (
+          <div className="layers-panel">
+            <div className="sidebar-header">
+              <span>🗂️ 레이어 ({currentPage.blocks.length})</span>
             </div>
-
-            {/* 레이어 패널 */}
-            {isEditing && currentPage && (
-              <div className="sidebar-section layers-section">
-                <div className="sidebar-header">
-                  <span>🗂️ 레이어 ({currentPage.blocks.length})</span>
-                </div>
-                <div className="layers-list">
-                  {[...currentPage.blocks]
-                    .sort((a, b) => (b.style?.zIndex || 0) - (a.style?.zIndex || 0))
-                    .map((block) => (
-                      <div 
-                        key={block.id}
-                        className={`layer-item ${selectedBlockIds.includes(block.id) ? 'selected' : ''} ${block.locked ? 'locked' : ''}`}
+            <div className="layers-list">
+              {[...currentPage.blocks]
+                .sort((a, b) => (b.style?.zIndex || 0) - (a.style?.zIndex || 0))
+                .map((block) => (
+                  <div 
+                    key={block.id}
+                    className={`layer-item ${selectedBlockIds.includes(block.id) ? 'selected' : ''} ${block.locked ? 'locked' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedBlockIds([block.id])
+                      setIsSelecting(false)
+                      setIsDragging(false)
+                    }}
+                  >
+                    <span className="layer-icon">
+                      {block.type === 'shape' ? (block.style?.shapeType === 'circle' ? '⭕' : '⬜') :
+                       block.type === 'image' ? '🖼️' :
+                       block.type === 'heading' ? '📝' :
+                       block.type === 'quote' ? '💬' :
+                       block.type === 'list' ? '📋' :
+                       block.type === 'step' ? '🔢' :
+                       block.type === 'summary' ? '🎯' :
+                       block.type === 'highlight' ? '⭐' :
+                       '📄'}
+                    </span>
+                    <span className="layer-name">
+                      {block.type === 'shape' ? (block.style?.shapeType === 'circle' ? '원' : '사각형') :
+                       block.type === 'image' ? '이미지' :
+                       block.type === 'heading' ? block.content.slice(0, 10) + (block.content.length > 10 ? '...' : '') :
+                       block.type === 'quote' ? '콜아웃' :
+                       block.type === 'list' ? '목록' :
+                       block.type === 'step' ? '스텝' :
+                       block.type === 'summary' ? '요약' :
+                       block.type === 'highlight' ? '하이라이트' :
+                       block.content.slice(0, 8) + (block.content.length > 8 ? '...' : '')}
+                    </span>
+                    <div className="layer-actions">
+                      <button 
+                        className="layer-btn"
                         onClick={(e) => {
                           e.stopPropagation()
-                          // 레이어 클릭 시 해당 블록만 선택
-                          setSelectedBlockIds([block.id])
-                          setIsSelecting(false)
-                          setIsDragging(false)
+                          const maxZ = currentPage.blocks.reduce((max, b) => Math.max(max, b.style?.zIndex || 0), 0)
+                          if ((block.style?.zIndex || 0) < maxZ) {
+                            updatePages(prev => prev.map((p, i) => {
+                              if (i !== currentPageIndex) return p
+                              return {
+                                ...p,
+                                blocks: p.blocks.map(b => 
+                                  b.id === block.id 
+                                    ? { ...b, style: { ...b.style, zIndex: (b.style?.zIndex || 0) + 1 } }
+                                    : b
+                                )
+                              }
+                            }))
+                          }
                         }}
-                      >
-                        <span className="layer-icon">
-                          {block.type === 'shape' ? (block.style?.shapeType === 'circle' ? '⭕' : '⬜') :
-                           block.type === 'image' ? '🖼️' :
-                           block.type === 'heading' ? '📝' :
-                           block.type === 'quote' ? '💬' :
-                           block.type === 'list' ? '📋' :
-                           block.type === 'step' ? '🔢' :
-                           block.type === 'summary' ? '🎯' :
-                           block.type === 'highlight' ? '⭐' :
-                           '📄'}
-                        </span>
-                        <span className="layer-name">
-                          {block.type === 'shape' ? (block.style?.shapeType === 'circle' ? '원' : '사각형') :
-                           block.type === 'image' ? '이미지' :
-                           block.type === 'heading' ? block.content.slice(0, 10) + (block.content.length > 10 ? '...' : '') :
-                           block.type === 'quote' ? '콜아웃' :
-                           block.type === 'list' ? '목록' :
-                           block.type === 'step' ? '스텝' :
-                           block.type === 'summary' ? '요약' :
-                           block.type === 'highlight' ? '하이라이트' :
-                           block.content.slice(0, 8) + (block.content.length > 8 ? '...' : '')}
-                        </span>
-                        <span className="layer-zindex">z:{block.style?.zIndex || 0}</span>
-                        <div className="layer-actions">
-                          <button 
-                            className="layer-btn"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              // 위로 이동 (zIndex 증가)
-                              const maxZ = currentPage.blocks.reduce((max, b) => Math.max(max, b.style?.zIndex || 0), 0)
-                              if ((block.style?.zIndex || 0) < maxZ) {
-                                updatePages(prev => prev.map((p, i) => {
-                                  if (i !== currentPageIndex) return p
-                                  return {
-                                    ...p,
-                                    blocks: p.blocks.map(b => 
-                                      b.id === block.id 
-                                        ? { ...b, style: { ...b.style, zIndex: (b.style?.zIndex || 0) + 1 } }
-                                        : b
-                                    )
-                                  }
-                                }))
+                        title="위로"
+                      >▲</button>
+                      <button 
+                        className="layer-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const minZ = currentPage.blocks.reduce((min, b) => Math.min(min, b.style?.zIndex || 0), 0)
+                          if ((block.style?.zIndex || 0) > minZ) {
+                            updatePages(prev => prev.map((p, i) => {
+                              if (i !== currentPageIndex) return p
+                              return {
+                                ...p,
+                                blocks: p.blocks.map(b => 
+                                  b.id === block.id 
+                                    ? { ...b, style: { ...b.style, zIndex: (b.style?.zIndex || 0) - 1 } }
+                                    : b
+                                )
                               }
-                            }}
-                            title="위로"
-                          >▲</button>
-                          <button 
-                            className="layer-btn"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              // 아래로 이동 (zIndex 감소)
-                              const minZ = currentPage.blocks.reduce((min, b) => Math.min(min, b.style?.zIndex || 0), 0)
-                              if ((block.style?.zIndex || 0) > minZ) {
-                                updatePages(prev => prev.map((p, i) => {
-                                  if (i !== currentPageIndex) return p
-                                  return {
-                                    ...p,
-                                    blocks: p.blocks.map(b => 
-                                      b.id === block.id 
-                                        ? { ...b, style: { ...b.style, zIndex: (b.style?.zIndex || 0) - 1 } }
-                                        : b
-                                    )
-                                  }
-                                }))
-                              }
-                            }}
-                            title="아래로"
-                          >▼</button>
-                          <button 
-                            className="layer-btn"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              // 잠금 토글
-                              updatePages(prev => prev.map((p, i) => {
-                                if (i !== currentPageIndex) return p
-                                return {
-                                  ...p,
-                                  blocks: p.blocks.map(b => 
-                                    b.id === block.id ? { ...b, locked: !b.locked } : b
-                                  )
-                                }
-                              }))
-                            }}
-                            title={block.locked ? '잠금 해제' : '잠금'}
-                          >{block.locked ? '🔒' : '🔓'}</button>
-                          <button 
-                            className="layer-btn danger"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              // 삭제
-                              const newPages = [...pages]
-                              newPages[currentPageIndex] = {
-                                ...newPages[currentPageIndex],
-                                blocks: newPages[currentPageIndex].blocks.filter(b => b.id !== block.id)
-                              }
-                              setPages(newPages)
-                              saveToHistory(newPages)
-                              if (selectedBlockIds.includes(block.id)) {
-                                setSelectedBlockIds([])
-                              }
-                            }}
-                            title="삭제"
-                          >✕</button>
-                        </div>
-                      </div>
-                    ))}
+                            }))
+                          }
+                        }}
+                        title="아래로"
+                      >▼</button>
+                      <button 
+                        className="layer-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          updatePages(prev => prev.map((p, i) => {
+                            if (i !== currentPageIndex) return p
+                            return {
+                              ...p,
+                              blocks: p.blocks.map(b => 
+                                b.id === block.id ? { ...b, locked: !b.locked } : b
+                              )
+                            }
+                          }))
+                        }}
+                        title={block.locked ? '잠금 해제' : '잠금'}
+                      >{block.locked ? '🔒' : '🔓'}</button>
+                      <button 
+                        className="layer-btn danger"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const newPages = [...pages]
+                          newPages[currentPageIndex] = {
+                            ...newPages[currentPageIndex],
+                            blocks: newPages[currentPageIndex].blocks.filter(b => b.id !== block.id)
+                          }
+                          setPages(newPages)
+                          saveToHistory(newPages)
+                          if (selectedBlockIds.includes(block.id)) {
+                            setSelectedBlockIds([])
+                          }
+                        }}
+                        title="삭제"
+                      >✕</button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* 페이지 목록 사이드바 (기존처럼 길게) */}
+        {pages.length > 0 && (
+          <div className="pages-sidebar">
+            <div className="sidebar-header">
+              <span>📄 페이지 ({pages.length})</span>
+              <button onClick={addNewPage} className="btn-mini" title="새 페이지 추가">+</button>
+            </div>
+            <div className="pages-list">
+              {pages.map((page, idx) => (
+                <div 
+                  key={page.id} 
+                  className={`page-thumbnail ${idx === currentPageIndex ? 'active' : ''}`}
+                  onClick={() => setCurrentPageIndex(idx)}
+                >
+                  <div className="thumbnail-preview" style={{ 
+                    width: 80, 
+                    height: 80 * (previewSize.height / previewSize.width) 
+                  }}>
+                    <div className="thumbnail-content">
+                      {page.blocks.slice(0, 5).map(block => (
+                        <div 
+                          key={block.id} 
+                          className="thumbnail-block"
+                          style={{
+                            left: `${(block.x / previewSize.width) * 100}%`,
+                            top: `${(block.y / previewSize.height) * 100}%`,
+                            width: `${(block.width / previewSize.width) * 100}%`,
+                            height: block.type === 'heading' ? '8%' : '4%',
+                            background: block.style?.background || (block.type === 'heading' ? '#6366f1' : '#ddd'),
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span className="thumbnail-number">{idx + 1}</span>
+                  </div>
+                  {pages.length > 1 && (
+                    <button 
+                      className="thumbnail-delete" 
+                      onClick={(e) => { e.stopPropagation(); deletePage(idx) }}
+                      title="페이지 삭제"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
       </div>
