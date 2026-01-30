@@ -95,8 +95,6 @@ let blockIdCounter = 0
 const generateId = () => `block-${++blockIdCounter}`
 const generateProjectId = () => `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-let styleIndex = { heading: 0, quote: 0, section: 0 }
-
 export default function App() {
   const [view, setView] = useState<View>('home')
   const [projects, setProjects] = useState<Project[]>([])
@@ -330,7 +328,6 @@ export default function App() {
     setCurrentPageIndex(0)
     setHistory([])
     setHistoryIndex(-1)
-    styleIndex = { heading: 0, quote: 0, section: 0 }
 
     const sizeInfo = PAGE_SIZES[pageSize]
     let userPrompt = prompt
@@ -423,6 +420,11 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
 
   // Markdown → 페이지/블록 변환 (디자인 다양화)
   const parseMarkdownToPages = (content: string, size: { width: number; height: number }): Page[] => {
+    // 스타일 인덱스 리셋 (항상 같은 순서로 적용)
+    let headingIdx = 0
+    let quoteIdx = 0
+    let sectionIdx = 0
+    
     const allLines = content.split('\n')
     const contentWidth = size.width * 0.84
     const startY = size.height * 0.06
@@ -457,8 +459,8 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
       if (trimmed.startsWith('# ')) {
         blockHeight = 45
         marginTop = lastBlockType ? 12 : 0
-        const style = HEADING_STYLES[styleIndex.heading % HEADING_STYLES.length]
-        styleIndex.heading++
+        const style = HEADING_STYLES[headingIdx % HEADING_STYLES.length]
+        headingIdx++
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(2),
           x, y: y + marginTop, width: contentWidth,
@@ -468,8 +470,8 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
       } else if (trimmed.startsWith('## ')) {
         blockHeight = 32
         marginTop = lastBlockType === 'h1' ? 8 : 12
-        const style = SECTION_STYLES[styleIndex.section % SECTION_STYLES.length]
-        styleIndex.section++
+        const style = SECTION_STYLES[sectionIdx % SECTION_STYLES.length]
+        sectionIdx++
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(3),
           x, y: y + marginTop, width: contentWidth,
@@ -488,8 +490,8 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
       } else if (trimmed.startsWith('> ')) {
         blockHeight = 32
         marginTop = 6
-        const style = QUOTE_STYLES[styleIndex.quote % QUOTE_STYLES.length]
-        styleIndex.quote++
+        const style = QUOTE_STYLES[quoteIdx % QUOTE_STYLES.length]
+        quoteIdx++
         block = {
           id: generateId(), type: 'quote', content: trimmed.slice(2),
           x, y: y + marginTop, width: contentWidth,
