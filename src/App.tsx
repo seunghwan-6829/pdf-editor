@@ -189,6 +189,10 @@ export default function App() {
   const [includeToc, setIncludeToc] = useState(false)
   const [includeEpilogue, setIncludeEpilogue] = useState(false)
   
+  // 저장 여부 추적
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
+  
   const [pages, setPages] = useState<Page[]>([])
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([])
@@ -214,7 +218,8 @@ export default function App() {
   const [showGuidelineMenu, setShowGuidelineMenu] = useState(false)
   
   const [isResizing, setIsResizing] = useState(false)
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0 })
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 })
+  const [resizeDirection, setResizeDirection] = useState<'corner' | 'right' | 'bottom'>('corner')
   
   const pageRef = useRef<HTMLDivElement>(null)
   const pagesContainerRef = useRef<HTMLDivElement>(null)
@@ -323,6 +328,7 @@ export default function App() {
       return newHistory.slice(-50)
     })
     setHistoryIndex(prev => Math.min(prev + 1, 49))
+    setHasUnsavedChanges(true)
   }, [historyIndex])
 
   // 미리보기 영역 포커스 상태
@@ -421,6 +427,7 @@ export default function App() {
     }
 
     setIsSaving(true)
+    setHasUnsavedChanges(false)
     const now = new Date().toISOString()
     const projectId = currentProjectId || generateProjectId()
     
@@ -1596,14 +1603,33 @@ ${tocText}
     
     // 리사이즈
     if (isResizing && selectedBlockIds.length > 0) {
-      const newWidth = Math.max(50, resizeStart.width + (e.clientX - resizeStart.x))
+      const deltaX = e.clientX - resizeStart.x
+      const deltaY = e.clientY - resizeStart.y
+      
       setPages(prev => prev.map((page, idx) => {
         if (idx !== currentPageIndex) return page
         return {
           ...page,
-          blocks: page.blocks.map(block => 
-            block.id === selectedBlockIds[0] ? { ...block, width: newWidth } : block
-          )
+          blocks: page.blocks.map(block => {
+            if (block.id !== selectedBlockIds[0]) return block
+            
+            let newWidth = block.width
+            let newHeight = block.type === 'shape' ? block.width * 0.7 : undefined
+            
+            if (resizeDirection === 'corner' || resizeDirection === 'right') {
+              newWidth = Math.max(50, resizeStart.width + deltaX)
+            }
+            if (resizeDirection === 'corner' && block.type === 'shape') {
+              // 비율 유지하며 크기 조절
+              newWidth = Math.max(50, resizeStart.width + deltaX)
+            }
+            if (resizeDirection === 'bottom' && block.type === 'shape') {
+              // 높이만 조절 (width로 높이 계산)
+              newWidth = Math.max(50, (resizeStart.height + deltaY) / 0.7)
+            }
+            
+            return { ...block, width: newWidth }
+          })
         }
       }))
     }
@@ -1621,12 +1647,14 @@ ${tocText}
   }
 
   // 리사이즈 시작
-  const handleResizeStart = (e: React.MouseEvent, block: Block) => {
+  const handleResizeStart = (e: React.MouseEvent, block: Block, direction: 'corner' | 'right' | 'bottom' = 'corner') => {
     e.stopPropagation()
     e.preventDefault()
     setSelectedBlockIds([block.id])
     setIsResizing(true)
-    setResizeStart({ x: e.clientX, y: e.clientY, width: block.width })
+    setResizeDirection(direction)
+    const height = block.type === 'shape' ? block.width * 0.7 : 100
+    setResizeStart({ x: e.clientX, y: e.clientY, width: block.width, height })
   }
 
   // 이미지 회전
@@ -1736,11 +1764,14 @@ ${tocText}
 
   // 블록 삭제
   const handleDeleteBlock = () => {
-    if (selectedBlockIds.length === 0) return
-    updatePages(prev => prev.map((page, idx) => {
-      if (idx !== currentPageIndex) return page
-      return { ...page, blocks: page.blocks.filter(b => !selectedBlockIds.includes(b.id) || b.locked) }
-    }))
+    if (selectedBlockIds.length === 0 || !currentPage) return
+    const newPages = [...pages]
+    newPages[currentPageIndex] = {
+      ...newPages[currentPageIndex],
+      blocks: newPages[currentPageIndex].blocks.filter(b => !selectedBlockIds.includes(b.id))
+    }
+    setPages(newPages)
+    saveToHistory(newPages)
     setSelectedBlockIds([])
   }
 
@@ -1920,7 +1951,13 @@ ${tocText}
       {/* 통합 상단바 */}
       <header className="header single-bar">
         <div className="header-left">
-          <button className="btn btn-ghost btn-sm" onClick={() => setView('home')}>← 홈</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => {
+            if (hasUnsavedChanges && pages.length > 0) {
+              setShowExitConfirm(true)
+            } else {
+              setView('home')
+            }
+          }}>← 홈</button>
           <h1>📚 {bookTitle || '새 프로젝트'}</h1>
           <div className="mode-tabs">
             <button className={`tab ${mode === 'ebook' ? 'active' : ''}`} onClick={() => setMode('ebook')}>전자책</button>
@@ -1997,14 +2034,14 @@ ${tocText}
                   </div>
                 )}
               </div>
-              {selectedBlock?.type === 'shape' && (
+              {selectedBlock && ['shape', 'quote', 'step', 'summary', 'highlight', 'checklist', 'bigquote'].includes(selectedBlock.type) && (
                 <>
                   <span className="toolbar-divider" />
                   <label className="color-picker-label">
-                    채우기
+                    배경
                     <input 
                       type="color" 
-                      value={selectedBlock.style?.fill || '#3b82f6'}
+                      value={selectedBlock.style?.fill || selectedBlock.style?.background?.match(/#[0-9a-fA-F]{6}/)?.[0] || '#3b82f6'}
                       onChange={(e) => {
                         updatePages(prev => prev.map((page, idx) => {
                           if (idx !== currentPageIndex) return page
@@ -2012,7 +2049,7 @@ ${tocText}
                             ...page,
                             blocks: page.blocks.map(b => 
                               b.id === selectedBlock.id 
-                                ? { ...b, style: { ...b.style, fill: e.target.value } }
+                                ? { ...b, style: { ...b.style, fill: e.target.value, background: e.target.value } }
                                 : b
                             )
                           }
@@ -2022,10 +2059,10 @@ ${tocText}
                     />
                   </label>
                   <label className="color-picker-label">
-                    선
+                    테두리
                     <input 
                       type="color" 
-                      value={selectedBlock.style?.stroke || '#1d4ed8'}
+                      value={selectedBlock.style?.stroke || selectedBlock.style?.borderLeft?.match(/#[0-9a-fA-F]{6}/)?.[0] || '#1d4ed8'}
                       onChange={(e) => {
                         updatePages(prev => prev.map((page, idx) => {
                           if (idx !== currentPageIndex) return page
@@ -2033,7 +2070,7 @@ ${tocText}
                             ...page,
                             blocks: page.blocks.map(b => 
                               b.id === selectedBlock.id 
-                                ? { ...b, style: { ...b.style, stroke: e.target.value } }
+                                ? { ...b, style: { ...b.style, stroke: e.target.value, borderLeft: `4px solid ${e.target.value}` } }
                                 : b
                             )
                           }
@@ -2086,6 +2123,48 @@ ${tocText}
         <div className="error-bar">
           <span>⚠️ {error}</span>
           <button onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      {/* 저장 확인 모달 */}
+      {showExitConfirm && (
+        <div className="modal-overlay">
+          <div className="modal exit-confirm-modal">
+            <div className="modal-header">
+              <h3>⚠️ 저장되지 않은 변경사항</h3>
+            </div>
+            <div className="modal-body">
+              <p>저장하지 않은 변경사항이 있습니다. 저장하시겠습니까?</p>
+              <div className="exit-confirm-buttons">
+                <button 
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    await saveCurrentProject()
+                    setShowExitConfirm(false)
+                    setView('home')
+                  }}
+                >
+                  💾 저장하고 나가기
+                </button>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowExitConfirm(false)
+                    setHasUnsavedChanges(false)
+                    setView('home')
+                  }}
+                >
+                  저장 안 함
+                </button>
+                <button 
+                  className="btn btn-ghost"
+                  onClick={() => setShowExitConfirm(false)}
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2153,7 +2232,6 @@ ${tocText}
               <div className="section-block">
                 <h3>📖 책 정보</h3>
                 <input type="text" placeholder="책 제목" value={bookTitle} onChange={(e) => setBookTitle(e.target.value)} className="input-compact" />
-                <input type="number" min="1" max="50" value={pageCount} onChange={(e) => setPageCount(e.target.value)} className="input-compact" placeholder="페이지 수" style={{marginTop: '0.5rem'}} />
               </div>
               
               {/* AI 추가 섹션 옵션 */}

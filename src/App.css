@@ -1145,6 +1145,28 @@ body {
   background: var(--danger);
 }
 
+/* 저장 확인 모달 */
+.exit-confirm-modal {
+  width: 360px;
+}
+
+.exit-confirm-modal .modal-body p {
+  margin-bottom: 1.25rem;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.exit-confirm-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.exit-confirm-buttons .btn {
+  width: 100%;
+  justify-content: center;
+}
+
 /* 리사이즈 핸들 */
 .resize-handle {
   position: absolute;
@@ -1222,7 +1244,7 @@ body {
   padding: 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .page-thumbnail {
@@ -1231,6 +1253,7 @@ body {
   border-radius: 4px;
   overflow: hidden;
   transition: all 0.15s;
+  flex-shrink: 0;  /* 크기 고정 */
 }
 
 .page-thumbnail:hover {
@@ -1247,8 +1270,8 @@ body {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--border);
-  aspect-ratio: 210 / 297;  /* A4 비율 고정 */
-  width: 100%;
+  width: 100px;  /* 고정 너비 */
+  height: 141px; /* A4 비율 (100 * 297/210) */
 }
 
 .thumbnail-content {
