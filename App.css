@@ -1,10 +1,10 @@
 :root {
-  --bg: #0a0a0f;
-  --surface: #151520;
-  --surface-2: #1e1e2d;
-  --border: #2d2d44;
-  --text: #e8e8f0;
-  --muted: #8888aa;
+  --bg: #000000;
+  --surface: #0d0d0d;
+  --surface-2: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #ffffff;
+  --muted: #888888;
   --accent: #6366f1;
   --accent-hover: #4f46e5;
   --success: #10b981;
@@ -14,12 +14,17 @@
 
 /* 라이트 모드 */
 [data-theme="light"] {
-  --bg: #f5f5f7;
+  --bg: #f0f0f0;
   --surface: #ffffff;
-  --surface-2: #f0f0f5;
-  --border: #e0e0e8;
-  --text: #1a1a2e;
-  --muted: #6b7280;
+  --surface-2: #e8e8e8;
+  --border: #d0d0d0;
+  --text: #111111;
+  --muted: #666666;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
 }
 
 * {
@@ -448,7 +453,7 @@ body {
   flex-direction: column;
   align-items: center;
   overflow: auto;
-  background: #2a2a3a;
+  background: var(--bg);
   border-radius: 8px;
   padding: 1rem;
   outline: none;
@@ -726,10 +731,11 @@ body {
 }
 
 .thumbnail-preview {
-  background: white;
+  background: #ffffff;
   border-radius: 4px;
   position: relative;
   overflow: hidden;
+  border: 1px solid var(--border);
 }
 
 .thumbnail-content {
@@ -838,7 +844,7 @@ body {
 
 .project-preview {
   height: 100px;
-  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  background: var(--surface-2);
   display: flex;
   align-items: center;
   justify-content: center;
