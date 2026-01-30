@@ -1690,12 +1690,43 @@ ${tocText}
     input.click()
   }
 
-  // 도형 추가 - 임시 비활성화
-  /*
-  const addShape = (shapeType: 'rect' | 'circle') => {
-    // 비활성화됨
+  // 도형 추가 (사각형만)
+  const addShape = () => {
+    const newBlockId = generateId()
+    const maxZIndex = currentPage?.blocks.reduce((max, b) => Math.max(max, b.style?.zIndex || 0), 0) || 0
+    
+    const newBlock: Block = {
+      id: newBlockId,
+      type: 'shape',
+      content: 'rect',
+      x: previewSize.width * 0.3,
+      y: previewSize.height * 0.3,
+      width: 100,
+      height: 70,
+      rotation: 0,
+      style: {
+        shapeType: 'rect',
+        fill: '#3b82f6',
+        stroke: '#1d4ed8',
+        strokeWidth: 2,
+        zIndex: maxZIndex + 1,
+      }
+    }
+    
+    isBlockAction.current = true
+    setIsDragging(false)
+    setDragBlockId(null)
+    
+    const newPages = pages.map((page, idx) => {
+      if (idx !== currentPageIndex) return page
+      return { ...page, blocks: [...page.blocks, newBlock] }
+    })
+    setPages(newPages)
+    saveToHistory(newPages)
+    setSelectedBlockIds([newBlockId])
+    
+    setTimeout(() => { isBlockAction.current = false }, 100)
   }
-  */
 
   // 뒤로 보내기 (zIndex 기반)
   const sendToBack = () => {
@@ -1979,10 +2010,7 @@ ${tocText}
               <button onClick={() => handleAlign('right')} className="tool-btn" title="오른쪽 정렬">▶</button>
               <span className="toolbar-divider" />
               <button onClick={handleAddImage} className="tool-btn" title="이미지 추가">🖼️</button>
-              {/* 도형 기능 임시 비활성화 - 버그 테스트용
-              <button onClick={() => addShape('rect')} className="tool-btn" title="사각형 추가">⬜</button>
-              <button onClick={() => addShape('circle')} className="tool-btn" title="원 추가">⭕</button>
-              */}
+              <button onClick={addShape} className="tool-btn" title="사각형 추가">⬜</button>
               <button onClick={handleRotate} disabled={!selectedBlock || (selectedBlock.type !== 'image' && selectedBlock.type !== 'shape')} className="tool-btn" title="회전">🔄</button>
               <span className="toolbar-divider" />
               <button onClick={sendToBack} disabled={selectedBlockIds.length === 0} className="tool-btn" title="뒤로 보내기">⬇️</button>
