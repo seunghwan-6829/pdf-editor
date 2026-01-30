@@ -380,13 +380,13 @@ export default function App() {
       if (clipboardBlocks.length > 0 && pages.length > 0) {
         isBlockAction.current = true
         
-        // 먼저 기존 선택 해제
-        setSelectedBlockIds([])
+        const newBlockIds: string[] = []
+        const newBlocks = clipboardBlocks.map(b => {
+          const newId = generateId()
+          newBlockIds.push(newId)
+          return { ...b, id: newId }
+        })
         
-        const newBlocks = clipboardBlocks.map(b => ({
-          ...b,
-          id: generateId(),
-        }))
         const newPages = [...pages]
         newPages[currentPageIndex] = {
           ...newPages[currentPageIndex],
@@ -395,11 +395,11 @@ export default function App() {
         setPages(newPages)
         saveToHistory(newPages)
         
-        // 새 블록만 선택
-        setTimeout(() => {
-          setSelectedBlockIds(newBlocks.map(b => b.id))
-          isBlockAction.current = false
-        }, 0)
+        // 새 블록만 선택 (딜레이 증가)
+        requestAnimationFrame(() => {
+          setSelectedBlockIds(newBlockIds)
+          setTimeout(() => { isBlockAction.current = false }, 50)
+        })
       }
     }
     // Delete: 선택한 블록 삭제
@@ -2311,12 +2311,14 @@ ${tocText}
               onClick={() => {
                 if (clipboardBlocks.length > 0 && pages.length > 0) {
                   isBlockAction.current = true
-                  setSelectedBlockIds([])
                   
-                  const newBlocks = clipboardBlocks.map(b => ({
-                    ...b,
-                    id: generateId(),
-                  }))
+                  const newBlockIds: string[] = []
+                  const newBlocks = clipboardBlocks.map(b => {
+                    const newId = generateId()
+                    newBlockIds.push(newId)
+                    return { ...b, id: newId }
+                  })
+                  
                   const newPages = [...pages]
                   newPages[currentPageIndex] = {
                     ...newPages[currentPageIndex],
@@ -2325,10 +2327,10 @@ ${tocText}
                   setPages(newPages)
                   saveToHistory(newPages)
                   
-                  setTimeout(() => {
-                    setSelectedBlockIds(newBlocks.map(b => b.id))
-                    isBlockAction.current = false
-                  }, 0)
+                  requestAnimationFrame(() => {
+                    setSelectedBlockIds(newBlockIds)
+                    setTimeout(() => { isBlockAction.current = false }, 50)
+                  })
                 }
               }}
               className="floating-btn"
