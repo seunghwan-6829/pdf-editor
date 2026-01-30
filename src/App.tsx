@@ -1528,29 +1528,62 @@ ${tocText}
     }
   }
 
-  // 페이지 마우스 다운 - 드래그 선택 완전 비활성화!
+  // 페이지 마우스 다운 (드래그 선택 시작)
   const handlePageMouseDown = (e: React.MouseEvent) => {
-    // 드래그 선택 기능 완전 OFF - 빈 공간 클릭 시 선택 해제만
     if (!isEditing) return
+    if (isBlockAction.current) return
     
     const target = e.target as HTMLElement
-    if (target.classList.contains('book-page')) {
-      // 빈 공간 클릭 시 선택 해제
-      setSelectedBlockIds([])
-      setIsSelecting(false)
-      setIsDragging(false)
-    }
+    if (!target.classList.contains('book-page')) return
+    
+    const rect = pageRef.current!.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    
+    setIsDragging(false)
+    setDragBlockId(null)
+    setIsSelecting(true)
+    setSelectionStart({ x, y })
+    setSelectionEnd({ x, y })
+    setSelectedBlockIds([])
   }
 
   // 드래그 중
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!pageRef.current) return
+    if (isBlockAction.current) return
     
     const rect = pageRef.current.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
     
-    // 드래그 선택 기능 완전 제거됨 - 아래 블록 드래그만 처리
+    // 드래그 선택
+    if (isSelecting && !isDragging) {
+      setSelectionEnd({ x: mouseX, y: mouseY })
+      
+      const selMinX = Math.min(selectionStart.x, mouseX)
+      const selMaxX = Math.max(selectionStart.x, mouseX)
+      const selMinY = Math.min(selectionStart.y, mouseY)
+      const selMaxY = Math.max(selectionStart.y, mouseY)
+      
+      if (Math.abs(selMaxX - selMinX) < 20 && Math.abs(selMaxY - selMinY) < 20) {
+        return
+      }
+      
+      const selected = currentPage?.blocks
+        .filter(b => {
+          if (b.locked) return false
+          let blockHeight = b.type === 'heading' ? 40 : 22
+          const blockCenterX = b.x + b.width / 2
+          const blockCenterY = b.y + blockHeight / 2
+          return blockCenterX >= selMinX && blockCenterX <= selMaxX && 
+                 blockCenterY >= selMinY && blockCenterY <= selMaxY
+        })
+        .map(b => b.id) || []
+      
+      setSelectedBlockIds(selected)
+      return
+    }
     
     // 블록 드래그 (선택된 모든 블록 함께 이동)
     if (isDragging && selectedBlockIds.length > 0 && dragBlockId) {
@@ -1899,8 +1932,8 @@ ${tocText}
     ? currentPage?.blocks.find(b => b.id === selectedBlockIds[0]) 
     : null
 
-  // 선택 박스 스타일 - 드래그 선택 비활성화됨
-  const selectionBoxStyle = false && isSelecting ? {
+  // 선택 박스 스타일
+  const selectionBoxStyle = isSelecting ? {
     left: Math.min(selectionStart.x, selectionEnd.x),
     top: Math.min(selectionStart.y, selectionEnd.y),
     width: Math.abs(selectionEnd.x - selectionStart.x),
@@ -2039,8 +2072,10 @@ ${tocText}
               <button onClick={() => handleAlign('right')} className="tool-btn" title="오른쪽 정렬">▶</button>
               <span className="toolbar-divider" />
               <button onClick={handleAddImage} className="tool-btn" title="이미지 추가">🖼️</button>
+              {/* 도형 기능 임시 비활성화 - 버그 테스트용
               <button onClick={() => addShape('rect')} className="tool-btn" title="사각형 추가">⬜</button>
               <button onClick={() => addShape('circle')} className="tool-btn" title="원 추가">⭕</button>
+              */}
               <button onClick={handleRotate} disabled={!selectedBlock || (selectedBlock.type !== 'image' && selectedBlock.type !== 'shape')} className="tool-btn" title="회전">🔄</button>
               <span className="toolbar-divider" />
               <button onClick={sendToBack} disabled={selectedBlockIds.length === 0} className="tool-btn" title="뒤로 보내기">⬇️</button>
