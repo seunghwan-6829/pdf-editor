@@ -1437,8 +1437,7 @@ ${tocText}
     // 블록 조작 플래그 (즉시 반영!)
     isBlockAction.current = true
     
-    // 모든 드래그/선택 상태 초기화
-    setIsSelecting(false)
+    // 드래그 상태 초기화
     setIsDragging(false)
     
     const block = currentPage?.blocks.find(b => b.id === blockId)
@@ -1504,10 +1503,6 @@ ${tocText}
     // 블록 조작 플래그 (즉시 반영!)
     isBlockAction.current = true
     
-    // 드래그 선택 완전 중지!
-    setIsSelecting(false)
-    setSelectionStart({ x: 0, y: 0 })
-    setSelectionEnd({ x: 0, y: 0 })
     
     // 이 블록만 선택 (무조건)
     setSelectedBlockIds([blockId])
@@ -1620,9 +1615,8 @@ ${tocText}
     }
     setIsDragging(false)
     setIsResizing(false)
-    setIsSelecting(false)
     setDragBlockId(null)
-    isBlockAction.current = false  // 플래그 초기화
+    isBlockAction.current = false
   }
 
   // 리사이즈 시작
@@ -1632,7 +1626,6 @@ ${tocText}
     isBlockAction.current = true  // 블록 조작 플래그
     setSelectedBlockIds([block.id])
     setIsResizing(true)
-    setIsSelecting(false)
     setResizeDirection(direction)
     const height = block.height || (block.type === 'shape' ? 70 : 100)
     setResizeStart({ x: e.clientX, y: e.clientY, width: block.width, height })
@@ -2626,7 +2619,6 @@ ${tocText}
                     onClick={(e) => {
                       e.stopPropagation()
                       setSelectedBlockIds([block.id])
-                      setIsSelecting(false)
                       setIsDragging(false)
                     }}
                   >
