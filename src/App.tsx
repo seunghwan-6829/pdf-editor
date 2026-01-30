@@ -9,7 +9,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 type Mode = 'simple' | 'ebook'
 type PageSize = 'A4' | 'A5' | 'B5'
-type BlockType = 'text' | 'heading' | 'image' | 'list' | 'quote' | 'table' | 'step' | 'summary' | 'bigquote' | 'checklist' | 'highlight'
+type BlockType = 'text' | 'heading' | 'image' | 'list' | 'quote' | 'table' | 'step' | 'summary' | 'bigquote' | 'checklist' | 'highlight' | 'shape'
 type View = 'home' | 'editor'
 
 interface Block {
@@ -35,6 +35,12 @@ interface Block {
     numBg?: string
     numColor?: string
     fontStyle?: string
+    // 도형 관련
+    shapeType?: 'rect' | 'circle' | 'line'
+    fill?: string
+    stroke?: string
+    strokeWidth?: number
+    zIndex?: number
   }
 }
 
@@ -1593,6 +1599,52 @@ ${tocText}
     input.click()
   }
 
+  // 도형 추가
+  const addShape = (shapeType: 'rect' | 'circle') => {
+    const newBlock: Block = {
+      id: generateId(),
+      type: 'shape',
+      content: shapeType,
+      x: previewSize.width * 0.3,
+      y: previewSize.height * 0.3,
+      width: 100,
+      rotation: 0,
+      style: {
+        shapeType,
+        fill: '#3b82f6',
+        stroke: '#1d4ed8',
+        strokeWidth: 2,
+        zIndex: 0,
+      }
+    }
+    updatePages(prev => prev.map((page, idx) => {
+      if (idx !== currentPageIndex) return page
+      return { ...page, blocks: [...page.blocks, newBlock] }
+    }))
+  }
+
+  // 뒤로 보내기
+  const sendToBack = () => {
+    if (selectedBlockIds.length === 0 || !currentPage) return
+    updatePages(prev => prev.map((page, idx) => {
+      if (idx !== currentPageIndex) return page
+      const selected = page.blocks.filter(b => selectedBlockIds.includes(b.id))
+      const others = page.blocks.filter(b => !selectedBlockIds.includes(b.id))
+      return { ...page, blocks: [...selected, ...others] }
+    }))
+  }
+
+  // 앞으로 가져오기
+  const bringToFront = () => {
+    if (selectedBlockIds.length === 0 || !currentPage) return
+    updatePages(prev => prev.map((page, idx) => {
+      if (idx !== currentPageIndex) return page
+      const selected = page.blocks.filter(b => selectedBlockIds.includes(b.id))
+      const others = page.blocks.filter(b => !selectedBlockIds.includes(b.id))
+      return { ...page, blocks: [...others, ...selected] }
+    }))
+  }
+
   // 블록 삭제
   const handleDeleteBlock = () => {
     if (selectedBlockIds.length === 0) return
@@ -1800,6 +1852,38 @@ ${tocText}
         </div>
         
         <div className="header-center">
+          {/* 뒤로/앞으로 버튼 */}
+          <div className="history-buttons">
+            <button 
+              onClick={() => {
+                if (historyIndex > 0) {
+                  const newIndex = historyIndex - 1
+                  setHistoryIndex(newIndex)
+                  setPages(JSON.parse(JSON.stringify(history[newIndex])))
+                }
+              }} 
+              disabled={historyIndex <= 0}
+              className="btn btn-ghost btn-sm"
+              title="뒤로 (Ctrl+Z)"
+            >
+              ↩️ 뒤로
+            </button>
+            <button 
+              onClick={() => {
+                if (historyIndex < history.length - 1) {
+                  const newIndex = historyIndex + 1
+                  setHistoryIndex(newIndex)
+                  setPages(JSON.parse(JSON.stringify(history[newIndex])))
+                }
+              }}
+              disabled={historyIndex >= history.length - 1}
+              className="btn btn-ghost btn-sm"
+              title="앞으로 (Ctrl+Y)"
+            >
+              앞으로 ↪️
+            </button>
+          </div>
+          
           {/* 편집 도구 */}
           {isEditing && (
             <div className="toolbar-inline">
@@ -1808,7 +1892,12 @@ ${tocText}
               <button onClick={() => handleAlign('right')} className="tool-btn" title="오른쪽 정렬">▶</button>
               <span className="toolbar-divider" />
               <button onClick={handleAddImage} className="tool-btn" title="이미지 추가">🖼️</button>
-              <button onClick={handleRotate} disabled={!selectedBlock || selectedBlock.type !== 'image'} className="tool-btn" title="회전">🔄</button>
+              <button onClick={() => addShape('rect')} className="tool-btn" title="사각형 추가">⬜</button>
+              <button onClick={() => addShape('circle')} className="tool-btn" title="원 추가">⭕</button>
+              <button onClick={handleRotate} disabled={!selectedBlock || (selectedBlock.type !== 'image' && selectedBlock.type !== 'shape')} className="tool-btn" title="회전">🔄</button>
+              <span className="toolbar-divider" />
+              <button onClick={sendToBack} disabled={selectedBlockIds.length === 0} className="tool-btn" title="뒤로 보내기">⬇️</button>
+              <button onClick={bringToFront} disabled={selectedBlockIds.length === 0} className="tool-btn" title="앞으로 가져오기">⬆️</button>
               <span className="toolbar-divider" />
               <button onClick={handleToggleLock} disabled={selectedBlockIds.length === 0} className="tool-btn" title="잠금/해제">
                 {selectedBlock?.locked ? '🔓' : '🔒'}
@@ -1822,6 +1911,53 @@ ${tocText}
                   </div>
                 )}
               </div>
+              {selectedBlock?.type === 'shape' && (
+                <>
+                  <span className="toolbar-divider" />
+                  <label className="color-picker-label">
+                    채우기
+                    <input 
+                      type="color" 
+                      value={selectedBlock.style?.fill || '#3b82f6'}
+                      onChange={(e) => {
+                        updatePages(prev => prev.map((page, idx) => {
+                          if (idx !== currentPageIndex) return page
+                          return {
+                            ...page,
+                            blocks: page.blocks.map(b => 
+                              b.id === selectedBlock.id 
+                                ? { ...b, style: { ...b.style, fill: e.target.value } }
+                                : b
+                            )
+                          }
+                        }))
+                      }}
+                      className="color-input"
+                    />
+                  </label>
+                  <label className="color-picker-label">
+                    선
+                    <input 
+                      type="color" 
+                      value={selectedBlock.style?.stroke || '#1d4ed8'}
+                      onChange={(e) => {
+                        updatePages(prev => prev.map((page, idx) => {
+                          if (idx !== currentPageIndex) return page
+                          return {
+                            ...page,
+                            blocks: page.blocks.map(b => 
+                              b.id === selectedBlock.id 
+                                ? { ...b, style: { ...b.style, stroke: e.target.value } }
+                                : b
+                            )
+                          }
+                        }))
+                      }}
+                      className="color-input"
+                    />
+                  </label>
+                </>
+              )}
               <button onClick={handleDeleteBlock} disabled={selectedBlockIds.length === 0} className="tool-btn danger" title="삭제">🗑️</button>
             </div>
           )}
@@ -2065,7 +2201,7 @@ ${tocText}
                 {currentPage.blocks.map(block => (
                   <div
                     key={block.id}
-                    className={`block ${block.type} ${selectedBlockIds.includes(block.id) ? 'selected' : ''} ${isEditing ? 'editable' : ''} ${block.locked ? 'locked' : ''}`}
+                    className={`block ${block.type} ${selectedBlockIds.includes(block.id) ? 'selected' : ''} ${isEditing ? 'editable' : ''} ${block.locked ? 'locked' : ''} ${editingBlockId === block.id ? 'editing-active' : ''}`}
                     style={{
                       left: block.x,
                       top: block.y,
@@ -2142,6 +2278,17 @@ ${tocText}
                       <div className="checklist-item">{block.content}</div>
                     ) : block.type === 'highlight' ? (
                       <div className="highlight-box">{block.content}</div>
+                    ) : block.type === 'shape' ? (
+                      <div 
+                        className="shape-box"
+                        style={{
+                          width: '100%',
+                          height: block.width * 0.7,
+                          background: block.style?.fill || '#3b82f6',
+                          border: `${block.style?.strokeWidth || 2}px solid ${block.style?.stroke || '#1d4ed8'}`,
+                          borderRadius: block.style?.shapeType === 'circle' ? '50%' : '8px',
+                        }}
+                      />
                     ) : block.type === 'list' ? (
                       <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
                     ) : (
@@ -2215,6 +2362,17 @@ ${tocText}
                       <div className="checklist-item">{block.content}</div>
                     ) : block.type === 'highlight' ? (
                       <div className="highlight-box">{block.content}</div>
+                    ) : block.type === 'shape' ? (
+                      <div 
+                        className="shape-box"
+                        style={{
+                          width: '100%',
+                          height: block.width * 0.7,
+                          background: block.style?.fill || '#3b82f6',
+                          border: `${block.style?.strokeWidth || 2}px solid ${block.style?.stroke || '#1d4ed8'}`,
+                          borderRadius: block.style?.shapeType === 'circle' ? '50%' : '8px',
+                        }}
+                      />
                     ) : block.type === 'list' ? (
                       <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
                     ) : (
