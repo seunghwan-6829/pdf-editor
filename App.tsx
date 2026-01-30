@@ -28,6 +28,9 @@ interface Block {
     textAlign?: 'left' | 'center' | 'right'
     background?: string
     borderLeft?: string
+    borderBottom?: string
+    border?: string
+    borderRadius?: string
     padding?: string
   }
 }
@@ -67,29 +70,24 @@ const getPreviewSize = (size: PageSize) => {
   return { width, height: width * ratio }
 }
 
-// 디자인 스타일 배리에이션
-const HEADING_STYLES = [
-  { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff' },
-  { background: 'linear-gradient(135deg, #f093fb, #f5576c)', color: '#fff' },
-  { background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#fff' },
-  { background: 'linear-gradient(135deg, #43e97b, #38f9d7)', color: '#1a1a2e' },
-  { background: 'linear-gradient(135deg, #fa709a, #fee140)', color: '#1a1a2e' },
-  { background: 'linear-gradient(135deg, #a8edea, #fed6e3)', color: '#1a1a2e' },
+// 챕터 헤딩 스타일 (다양한 레이아웃)
+const CHAPTER_STYLES = [
+  // 스타일 1: 그라데이션 배경 + 둥근 모서리
+  { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', borderRadius: '8px' },
+  // 스타일 2: 왼쪽 굵은 테두리
+  { background: '#f8fafc', color: '#1e40af', borderLeft: '6px solid #3b82f6', borderRadius: '0' },
+  // 스타일 3: 밑줄 스타일
+  { background: 'transparent', color: '#1e40af', borderBottom: '3px solid #3b82f6', borderRadius: '0' },
+  // 스타일 4: 아웃라인 박스
+  { background: '#fff', color: '#6366f1', border: '2px solid #6366f1', borderRadius: '8px' },
 ]
 
-const QUOTE_STYLES = [
-  { background: 'linear-gradient(135deg, #ffecd2, #fcb69f)', borderLeft: '4px solid #f093fb' },
-  { background: 'linear-gradient(135deg, #a1c4fd, #c2e9fb)', borderLeft: '4px solid #667eea' },
-  { background: 'linear-gradient(135deg, #d4fc79, #96e6a1)', borderLeft: '4px solid #43e97b' },
-  { background: 'linear-gradient(135deg, #fbc2eb, #a6c1ee)', borderLeft: '4px solid #f5576c' },
-  { background: 'linear-gradient(135deg, #fff1eb, #ace0f9)', borderLeft: '4px solid #4facfe' },
-]
-
-const SECTION_STYLES = [
-  { background: 'linear-gradient(135deg, #e0c3fc, #8ec5fc)', color: '#1a1a2e' },
-  { background: 'linear-gradient(135deg, #ffecd2, #fcb69f)', color: '#1a1a2e' },
-  { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff' },
-]
+// 콜아웃(인용구) - 노란색 고정
+const QUOTE_STYLE = { 
+  background: 'linear-gradient(135deg, #fef3c7, #fde68a)', 
+  borderLeft: '4px solid #f59e0b',
+  color: '#92400e'
+}
 
 let blockIdCounter = 0
 const generateId = () => `block-${++blockIdCounter}`
@@ -423,10 +421,8 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
 
   // Markdown → 페이지/블록 변환 (디자인 다양화)
   const parseMarkdownToPages = (content: string, size: { width: number; height: number }): Page[] => {
-    // 스타일 인덱스 리셋 (항상 같은 순서로 적용)
-    let headingIdx = 0
-    let quoteIdx = 0
-    let sectionIdx = 0
+    // 챕터별 스타일 인덱스
+    let chapterIdx = 0
     
     const allLines = content.split('\n')
     const contentWidth = size.width * 0.84
@@ -460,21 +456,27 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
       let block: Block | null = null
       
       if (trimmed.startsWith('# ')) {
-        blockHeight = 45
+        // 책 제목: 보라색 그라데이션 고정
+        blockHeight = 50
         marginTop = lastBlockType ? 12 : 0
-        const style = HEADING_STYLES[headingIdx % HEADING_STYLES.length]
-        headingIdx++
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(2),
           x, y: y + marginTop, width: contentWidth,
-          style: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', ...style, padding: '12px 16px' }
+          style: { 
+            fontSize: 22, fontWeight: 'bold', textAlign: 'center', 
+            background: 'linear-gradient(135deg, #667eea, #764ba2)', 
+            color: '#fff', 
+            padding: '14px 16px',
+            borderRadius: '10px'
+          }
         }
         lastBlockType = 'h1'
       } else if (trimmed.startsWith('## ')) {
-        blockHeight = 32
-        marginTop = lastBlockType === 'h1' ? 8 : 12
-        const style = SECTION_STYLES[sectionIdx % SECTION_STYLES.length]
-        sectionIdx++
+        // 챕터 제목: 다양한 레이아웃 스타일
+        blockHeight = 34
+        marginTop = lastBlockType === 'h1' ? 10 : 14
+        const style = CHAPTER_STYLES[chapterIdx % CHAPTER_STYLES.length]
+        chapterIdx++
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(3),
           x, y: y + marginTop, width: contentWidth,
@@ -482,23 +484,28 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
         }
         lastBlockType = 'h2'
       } else if (trimmed.startsWith('### ')) {
+        // 소제목: 왼쪽 라인 + 연한 배경
         blockHeight = 24
         marginTop = 8
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(4),
           x, y: y + marginTop, width: contentWidth,
-          style: { fontSize: 12, fontWeight: '600', color: '#4f46e5', background: 'linear-gradient(90deg, rgba(79,70,229,0.1), transparent)', padding: '6px 10px', borderLeft: '3px solid #4f46e5' }
+          style: { 
+            fontSize: 11, fontWeight: '600', color: '#dc2626',
+            background: 'transparent',
+            padding: '4px 10px', 
+            borderLeft: '3px solid #dc2626'
+          }
         }
         lastBlockType = 'h3'
       } else if (trimmed.startsWith('> ')) {
+        // 콜아웃: 노란색 고정
         blockHeight = 32
         marginTop = 6
-        const style = QUOTE_STYLES[quoteIdx % QUOTE_STYLES.length]
-        quoteIdx++
         block = {
           id: generateId(), type: 'quote', content: trimmed.slice(2),
           x, y: y + marginTop, width: contentWidth,
-          style: { ...style, padding: '10px 14px' }
+          style: { ...QUOTE_STYLE, padding: '10px 14px' }
         }
         lastBlockType = 'quote'
       } else if (trimmed.startsWith('- ') || /^\d+\./.test(trimmed)) {
@@ -1158,6 +1165,9 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
                       textAlign: block.style?.textAlign,
                       background: block.style?.background,
                       borderLeft: block.style?.borderLeft,
+                      borderBottom: block.style?.borderBottom,
+                      border: block.style?.border,
+                      borderRadius: block.style?.borderRadius,
                       padding: block.style?.padding,
                       transform: block.rotation ? `rotate(${block.rotation}deg)` : undefined,
                     }}
@@ -1221,6 +1231,9 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
                       textAlign: block.style?.textAlign,
                       background: block.style?.background,
                       borderLeft: block.style?.borderLeft,
+                      borderBottom: block.style?.borderBottom,
+                      border: block.style?.border,
+                      borderRadius: block.style?.borderRadius,
                       padding: block.style?.padding,
                       transform: block.rotation ? `rotate(${block.rotation}deg)` : undefined,
                     }}
