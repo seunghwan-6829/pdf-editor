@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { generatePdfFromElement } from './pdf/pdfGenerator'
+import { generatePdfFromElement, generateLargePdf } from './pdf/pdfGenerator'
 import { initSupabase, fetchProjects, saveProject, deleteProjectFromDB, ProjectRow } from './lib/supabase'
 import './App.css'
 
@@ -176,6 +176,10 @@ export default function App() {
   const [showAiEditModal, setShowAiEditModal] = useState(false)
   const [aiEditInstruction, setAiEditInstruction] = useState('')
   const [isAiEditing, setIsAiEditing] = useState(false)
+  
+  // PDF 다운로드 진행률
+  const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0, status: '' })
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   
   const [pages, setPages] = useState<Page[]>([])
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
@@ -1657,11 +1661,37 @@ ${tocText}
   // PDF 다운로드
   const downloadPdf = async () => {
     if (pages.length === 0) return setError('먼저 내용을 생성해주세요')
+    if (!pagesContainerRef.current) return setError('컨테이너 없음')
+    
+    setIsDownloadingPdf(true)
+    setPdfProgress({ current: 0, total: pages.length, status: '준비 중...' })
+    
     try {
-      if (!pagesContainerRef.current) throw new Error('컨테이너 없음')
-      await generatePdfFromElement(pagesContainerRef.current, bookTitle || 'document', pageSize)
+      // 100페이지 초과면 대용량 처리
+      if (pages.length > 100) {
+        await generateLargePdf(
+          pagesContainerRef.current, 
+          bookTitle || 'document', 
+          pageSize,
+          (current, total, status) => {
+            setPdfProgress({ current, total, status })
+          }
+        )
+      } else {
+        await generatePdfFromElement(
+          pagesContainerRef.current, 
+          bookTitle || 'document', 
+          pageSize,
+          (current, total) => {
+            setPdfProgress({ current, total, status: `${current}/${total} 페이지 변환 중...` })
+          }
+        )
+      }
+      setPdfProgress({ current: 0, total: 0, status: '' })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'PDF 생성 실패')
+    } finally {
+      setIsDownloadingPdf(false)
     }
   }
 
@@ -1811,7 +1841,9 @@ ${tocText}
           <button onClick={() => setIsEditing(!isEditing)} disabled={pages.length === 0} className={`btn btn-sm ${isEditing ? 'btn-warning' : 'btn-secondary'}`}>
             {isEditing ? '✓ 완료' : '✏️ 편집'}
           </button>
-          <button onClick={downloadPdf} disabled={pages.length === 0} className="btn btn-sm btn-success">📥 PDF</button>
+          <button onClick={downloadPdf} disabled={pages.length === 0 || isDownloadingPdf} className="btn btn-sm btn-success">
+            {isDownloadingPdf ? `📥 ${pdfProgress.current}/${pdfProgress.total}` : '📥 PDF'}
+          </button>
           <button className="btn btn-sm btn-primary" onClick={saveCurrentProject} disabled={pages.length === 0 || isSaving}>
             {isSaving ? '...' : '💾 저장'}
           </button>
