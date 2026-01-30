@@ -1170,19 +1170,40 @@ body {
 /* 리사이즈 핸들 */
 .resize-handle {
   position: absolute;
-  right: -6px;
-  bottom: -6px;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   background: #6366f1;
   border: 2px solid #fff;
   border-radius: 2px;
-  cursor: se-resize;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  z-index: 100;
 }
 
 .resize-handle:hover {
   background: #4f46e5;
+}
+
+/* 대각선 (오른쪽 하단) */
+.resize-handle.resize-corner {
+  right: -6px;
+  bottom: -6px;
+  cursor: se-resize;
+}
+
+/* 오른쪽 (가로 조절) */
+.resize-handle.resize-right {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: e-resize;
+}
+
+/* 하단 (세로 조절) */
+.resize-handle.resize-bottom {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: s-resize;
 }
 
 /* 블록 내 텍스트 입력 */

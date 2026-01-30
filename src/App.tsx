@@ -19,6 +19,7 @@ interface Block {
   x: number
   y: number
   width: number
+  height?: number  // 도형용 높이
   rotation?: number
   locked?: boolean
   style?: {
@@ -1612,16 +1613,21 @@ ${tocText}
             if (block.id !== selectedBlockIds[0]) return block
             
             let newWidth = block.width
+            let newHeight = block.height || 70
             
-            if (resizeDirection === 'corner' || resizeDirection === 'right') {
-              newWidth = Math.max(50, resizeStart.width + deltaX)
-            }
-            if (resizeDirection === 'bottom' && block.type === 'shape') {
-              // 높이만 조절 (width로 높이 계산)
-              newWidth = Math.max(50, (resizeStart.height + deltaY) / 0.7)
+            if (resizeDirection === 'corner') {
+              // 대각선: 가로/세로 동시 조절
+              newWidth = Math.max(30, resizeStart.width + deltaX)
+              newHeight = Math.max(30, resizeStart.height + deltaY)
+            } else if (resizeDirection === 'right') {
+              // 오른쪽: 가로만 조절
+              newWidth = Math.max(30, resizeStart.width + deltaX)
+            } else if (resizeDirection === 'bottom') {
+              // 하단: 세로만 조절
+              newHeight = Math.max(30, resizeStart.height + deltaY)
             }
             
-            return { ...block, width: newWidth }
+            return { ...block, width: newWidth, height: newHeight }
           })
         }
       }))
@@ -1646,7 +1652,7 @@ ${tocText}
     setSelectedBlockIds([block.id])
     setIsResizing(true)
     setResizeDirection(direction)
-    const height = block.type === 'shape' ? block.width * 0.7 : 100
+    const height = block.height || (block.type === 'shape' ? 70 : 100)
     setResizeStart({ x: e.clientX, y: e.clientY, width: block.width, height })
   }
 
@@ -1711,13 +1717,15 @@ ${tocText}
 
   // 도형 추가
   const addShape = (shapeType: 'rect' | 'circle') => {
+    const newBlockId = generateId()
     const newBlock: Block = {
-      id: generateId(),
+      id: newBlockId,
       type: 'shape',
       content: shapeType,
       x: previewSize.width * 0.3,
       y: previewSize.height * 0.3,
       width: 100,
+      height: 70,  // 초기 높이
       rotation: 0,
       style: {
         shapeType,
@@ -1727,6 +1735,8 @@ ${tocText}
         zIndex: 0,
       }
     }
+    // 기존 선택 해제하고 새 도형만 선택
+    setSelectedBlockIds([newBlockId])
     updatePages(prev => prev.map((page, idx) => {
       if (idx !== currentPageIndex) return page
       return { ...page, blocks: [...page.blocks, newBlock] }
@@ -2517,14 +2527,18 @@ ${tocText}
                           className="shape-box"
                           style={{
                             width: '100%',
-                            height: block.width * 0.7,
+                            height: block.height || 70,
                             background: block.style?.fill || '#3b82f6',
                             border: `${block.style?.strokeWidth || 2}px solid ${block.style?.stroke || '#1d4ed8'}`,
                             borderRadius: block.style?.shapeType === 'circle' ? '50%' : '8px',
                           }}
                         />
                         {isEditing && selectedBlockIds.includes(block.id) && !block.locked && (
-                          <div className="resize-handle" onMouseDown={(e) => handleResizeStart(e, block)} />
+                          <>
+                            <div className="resize-handle resize-corner" onMouseDown={(e) => handleResizeStart(e, block, 'corner')} />
+                            <div className="resize-handle resize-right" onMouseDown={(e) => handleResizeStart(e, block, 'right')} />
+                            <div className="resize-handle resize-bottom" onMouseDown={(e) => handleResizeStart(e, block, 'bottom')} />
+                          </>
                         )}
                       </>
                     ) : block.type === 'list' ? (
@@ -2605,7 +2619,7 @@ ${tocText}
                         className="shape-box"
                         style={{
                           width: '100%',
-                          height: block.width * 0.7,
+                          height: block.height || 70,
                           background: block.style?.fill || '#3b82f6',
                           border: `${block.style?.strokeWidth || 2}px solid ${block.style?.stroke || '#1d4ed8'}`,
                           borderRadius: block.style?.shapeType === 'circle' ? '50%' : '8px',
