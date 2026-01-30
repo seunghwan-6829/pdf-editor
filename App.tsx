@@ -9,7 +9,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 type Mode = 'simple' | 'ebook'
 type PageSize = 'A4' | 'A5' | 'B5'
-type BlockType = 'text' | 'heading' | 'image' | 'list' | 'quote' | 'table'
+type BlockType = 'text' | 'heading' | 'image' | 'list' | 'quote' | 'table' | 'step' | 'summary' | 'bigquote' | 'checklist' | 'highlight'
 type View = 'home' | 'editor'
 
 interface Block {
@@ -32,6 +32,9 @@ interface Block {
     border?: string
     borderRadius?: string
     padding?: string
+    numBg?: string
+    numColor?: string
+    fontStyle?: string
   }
 }
 
