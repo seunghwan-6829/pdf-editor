@@ -193,6 +193,10 @@ export default function App() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   
+  // 도형 크기 입력 모달
+  const [showShapeModal, setShowShapeModal] = useState(false)
+  const [shapeSize, setShapeSize] = useState({ width: 100, height: 70 })
+  
   const [pages, setPages] = useState<Page[]>([])
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([])
@@ -1699,7 +1703,13 @@ ${tocText}
     input.click()
   }
 
-  // 도형 추가 (사각형만)
+  // 도형 추가 모달 열기
+  const openShapeModal = () => {
+    setShapeSize({ width: 100, height: 70 })
+    setShowShapeModal(true)
+  }
+  
+  // 도형 실제 추가
   const addShape = () => {
     const newBlockId = generateId()
     const maxZIndex = currentPage?.blocks.reduce((max, b) => Math.max(max, b.style?.zIndex || 0), 0) || 0
@@ -1710,8 +1720,8 @@ ${tocText}
       content: 'rect',
       x: previewSize.width * 0.3,
       y: previewSize.height * 0.3,
-      width: 100,
-      height: 70,
+      width: shapeSize.width,
+      height: shapeSize.height,
       rotation: 0,
       style: {
         shapeType: 'rect',
@@ -1733,6 +1743,7 @@ ${tocText}
     setPages(newPages)
     saveToHistory(newPages)
     setSelectedBlockIds([newBlockId])
+    setShowShapeModal(false)
     
     setTimeout(() => { isBlockAction.current = false }, 100)
   }
@@ -2019,7 +2030,7 @@ ${tocText}
               <button onClick={() => handleAlign('right')} className="tool-btn" title="오른쪽 정렬">▶</button>
               <span className="toolbar-divider" />
               <button onClick={handleAddImage} className="tool-btn" title="이미지 추가">🖼️</button>
-              <button onClick={addShape} className="tool-btn" title="사각형 추가">⬜</button>
+              <button onClick={openShapeModal} className="tool-btn" title="사각형 추가">⬜</button>
               <button onClick={handleRotate} disabled={!selectedBlock || (selectedBlock.type !== 'image' && selectedBlock.type !== 'shape')} className="tool-btn" title="회전">🔄</button>
               <span className="toolbar-divider" />
               <button onClick={sendToBack} disabled={selectedBlockIds.length === 0} className="tool-btn" title="뒤로 보내기">⬇️</button>
@@ -2163,6 +2174,62 @@ ${tocText}
                   className="btn btn-ghost"
                   onClick={() => setShowExitConfirm(false)}
                 >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 도형 크기 입력 모달 */}
+      {showShapeModal && (
+        <div className="modal-overlay" onClick={() => setShowShapeModal(false)}>
+          <div className="modal shape-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>⬜ 도형 크기 설정</h3>
+              <button className="modal-close" onClick={() => setShowShapeModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="shape-size-inputs">
+                <div className="size-input-group">
+                  <label>가로 (px)</label>
+                  <input 
+                    type="number" 
+                    value={shapeSize.width} 
+                    onChange={(e) => setShapeSize(prev => ({ ...prev, width: Number(e.target.value) || 0 }))}
+                    min={10}
+                    max={800}
+                  />
+                </div>
+                <div className="size-input-group">
+                  <label>세로 (px)</label>
+                  <input 
+                    type="number" 
+                    value={shapeSize.height} 
+                    onChange={(e) => setShapeSize(prev => ({ ...prev, height: Number(e.target.value) || 0 }))}
+                    min={10}
+                    max={800}
+                  />
+                </div>
+              </div>
+              <div className="shape-preview">
+                <div 
+                  className="shape-preview-box"
+                  style={{
+                    width: Math.min(shapeSize.width, 200),
+                    height: Math.min(shapeSize.height, 150),
+                    backgroundColor: '#3b82f6',
+                    border: '2px solid #1d4ed8',
+                  }}
+                />
+                <span className="shape-preview-label">{shapeSize.width} x {shapeSize.height}</span>
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-primary" onClick={addShape}>
+                  ✓ 도형 추가
+                </button>
+                <button className="btn btn-ghost" onClick={() => setShowShapeModal(false)}>
                   취소
                 </button>
               </div>
