@@ -1247,11 +1247,17 @@ body {
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
 }
 
-/* 페이지 목록 사이드바 */
-.pages-sidebar {
-  width: 120px;
-  min-width: 120px;
+/* 오른쪽 사이드바 (페이지 + 레이어) */
+.right-sidebar {
+  width: 180px;
+  min-width: 180px;
   max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sidebar-section {
   background: var(--surface);
   border-radius: 8px;
   display: flex;
@@ -1267,15 +1273,16 @@ body {
   border-bottom: 1px solid var(--border);
   font-size: 0.75rem;
   color: var(--muted);
+  font-weight: 600;
 }
 
 .pages-list {
-  flex: 1;
+  max-height: 200px;
   overflow-y: auto;
   padding: 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .page-thumbnail {
@@ -1284,7 +1291,7 @@ body {
   border-radius: 4px;
   overflow: hidden;
   transition: all 0.15s;
-  flex-shrink: 0;  /* 크기 고정 */
+  flex-shrink: 0;
 }
 
 .page-thumbnail:hover {
@@ -1301,8 +1308,6 @@ body {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--border);
-  width: 100px;  /* 고정 너비 */
-  height: 141px; /* A4 비율 (100 * 297/210) */
 }
 
 .thumbnail-content {
@@ -1323,6 +1328,107 @@ body {
   font-size: 9px;
   color: #666;
   font-weight: 600;
+}
+
+/* 레이어 패널 */
+.layers-section {
+  flex: 1;
+  min-height: 0;
+}
+
+.layers-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 400px;
+}
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  transition: all 0.1s;
+  font-size: 0.7rem;
+}
+
+.layer-item:hover {
+  background: var(--border);
+}
+
+.layer-item.selected {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent-hover);
+}
+
+.layer-item.locked {
+  opacity: 0.6;
+}
+
+.layer-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.layer-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+}
+
+.layer-zindex {
+  font-size: 0.6rem;
+  color: var(--muted);
+  padding: 0 0.25rem;
+  background: rgba(0,0,0,0.2);
+  border-radius: 2px;
+}
+
+.layer-item.selected .layer-zindex {
+  background: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.8);
+}
+
+.layer-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.layer-item:hover .layer-actions,
+.layer-item.selected .layer-actions {
+  opacity: 1;
+}
+
+.layer-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+  font-size: 0.65rem;
+  border-radius: 2px;
+  color: inherit;
+  transition: background 0.1s;
+}
+
+.layer-btn:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.layer-btn.danger:hover {
+  background: #ef4444;
+  color: white;
 }
 
 .thumbnail-delete {
