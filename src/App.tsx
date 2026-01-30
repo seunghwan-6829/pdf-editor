@@ -91,6 +91,44 @@ const CALLOUT_STYLES: Record<string, { bg: string; border: string; color: string
   note: { bg: 'linear-gradient(135deg, #faf5ff, #f3e8ff)', border: '#9333ea', color: '#7c3aed', icon: '📝' },
 }
 
+// 스텝 박스 스타일
+const STEP_STYLES = [
+  { numBg: '#3b82f6', numColor: '#fff', bg: '#eff6ff', border: '#3b82f6' },
+  { numBg: '#8b5cf6', numColor: '#fff', bg: '#f5f3ff', border: '#8b5cf6' },
+  { numBg: '#ec4899', numColor: '#fff', bg: '#fdf2f8', border: '#ec4899' },
+  { numBg: '#14b8a6', numColor: '#fff', bg: '#f0fdfa', border: '#14b8a6' },
+]
+
+// 핵심 요약 박스 스타일
+const SUMMARY_BOX_STYLE = {
+  bg: 'linear-gradient(135deg, #1e293b, #334155)',
+  color: '#f8fafc',
+  border: '#3b82f6',
+  icon: '🎯'
+}
+
+// 인용구 스타일
+const QUOTE_BOX_STYLE = {
+  bg: '#f8fafc',
+  color: '#475569',
+  border: '#94a3b8',
+  quoteMark: '"'
+}
+
+// 체크리스트 스타일
+const CHECKLIST_STYLE = {
+  bg: '#f0fdf4',
+  checkColor: '#16a34a',
+  textColor: '#166534'
+}
+
+// 하이라이트 박스 스타일
+const HIGHLIGHT_STYLES = [
+  { bg: 'linear-gradient(90deg, #fef08a, #fde047)', color: '#713f12', icon: '⭐' },
+  { bg: 'linear-gradient(90deg, #bbf7d0, #86efac)', color: '#166534', icon: '✨' },
+  { bg: 'linear-gradient(90deg, #bfdbfe, #93c5fd)', color: '#1e40af', icon: '🔥' },
+]
+
 // 소제목 스타일
 const SUBHEADING_STYLES = [
   { color: '#be123c', borderLeft: '3px solid #be123c' },
@@ -463,18 +501,24 @@ export default function App() {
 - 5-8개 이상의 문단으로 깊이 있게 작성
 - 각 문단은 최소 4-5문장으로 구성
 - 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
-- > 콜아웃을 자주 활용 (3-5개): 💡팁, ⚠️중요, 📊데이터, 📌예시, 📝참고 등
 - **굵게**로 키워드 강조
-- [IMAGE: 설명] 형태로 이미지 위치 4-6개 표시 (관련 차트, 다이어그램, 예시 이미지 등)
-- 목록(-)으로 세부 정보를 정리 (각 섹션마다 1개 이상)
-- 문단 사이 빈 줄로 구분하여 가독성 확보
-- 중요한 인용구나 핵심 문장은 > 콜아웃으로 강조
+- 문단 사이 빈 줄로 구분
 
-【금지】코드블록, 표, 구분선, 짧은 요약
+【다양한 레이아웃 요소 적극 활용 - 매우 중요!】
+- > 콜아웃 (3개 이상): 팁, 중요, 예시, 데이터, 참고 등
+- [STEP 1] [STEP 2] [STEP 3] 형태로 단계별 설명 (방법론이나 과정 설명 시)
+- [SUMMARY] 핵심 요약 박스 (섹션 끝에 요약)
+- [QUOTE] 인상적인 인용구나 명언
+- [x] 체크리스트 형태 (할 일 목록, 준비물 등)
+- [HIGHLIGHT] 특별히 강조할 핵심 문장
+- [IMAGE: 설명] 이미지 영역 (3-4개)
+- 목록(-) 활용
+
+【금지】코드블록, 표, 구분선
 
 주제: ${prompt}
 
-이 세부목차 "${item.subTitle}"에 대해 전문가 수준으로 깊이 있게 작성해주세요. 다양한 시각적 요소(콜아웃, 이미지 영역, 목록)를 활용해 가독성을 높여주세요.`
+이 세부목차 "${item.subTitle}"에 대해 다양한 레이아웃 요소를 활용해 시각적으로 풍부하게 작성해주세요!`
         } else {
           // 세부목차 없는 챕터 전체 생성
           sectionPrompt = `${i === 0 ? `# ${bookTitle}\n\n` : ''}## ${item.chapterIdx + 1}장: ${item.chapterTitle}
@@ -483,18 +527,24 @@ export default function App() {
 - 8-12개 이상의 문단으로 깊이 있게 작성
 - 각 문단은 최소 4-5문장으로 구성
 - 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
-- > 콜아웃을 자주 활용 (5-8개): 💡팁, ⚠️중요, 📊데이터, 📌예시, 📝참고 등
 - **굵게**로 키워드 강조
-- [IMAGE: 설명] 형태로 이미지 위치 6-10개 표시 (관련 차트, 다이어그램, 예시 이미지 등)
-- 목록(-)으로 세부 정보를 정리 (각 섹션마다 1개 이상)
-- 문단 사이 빈 줄로 구분하여 가독성 확보
-- 중요한 인용구나 핵심 문장은 > 콜아웃으로 강조
+- 문단 사이 빈 줄로 구분
 
-【금지】코드블록, 표, 구분선, 짧은 요약
+【다양한 레이아웃 요소 적극 활용 - 매우 중요!】
+- > 콜아웃 (5개 이상): 팁, 중요, 예시, 데이터, 참고 등
+- [STEP 1] [STEP 2] [STEP 3] 형태로 단계별 설명
+- [SUMMARY] 핵심 요약 박스 (각 섹션 끝에)
+- [QUOTE] 인상적인 인용구나 명언
+- [x] 체크리스트 형태
+- [HIGHLIGHT] 특별히 강조할 핵심 문장
+- [IMAGE: 설명] 이미지 영역 (5-7개)
+- 목록(-) 활용
+
+【금지】코드블록, 표, 구분선
 
 주제: ${prompt}
 
-이 챕터 "${item.chapterTitle}"에 대해 전문가 수준으로 깊이 있게 작성해주세요. 다양한 시각적 요소(콜아웃, 이미지 영역, 목록)를 활용해 가독성을 높여주세요.`
+이 챕터 "${item.chapterTitle}"에 대해 다양한 레이아웃 요소를 활용해 시각적으로 풍부하게 작성해주세요!`
         }
 
         // 스트리밍 호출
@@ -625,23 +675,24 @@ ${tocText}
 - **굵게** 키워드 강조
 - 목록 - 또는 1. 2. 3.
 
-【이미지 위치 표시】
-- [IMAGE: 설명] 형태로 이미지 들어갈 위치 표시
-- 챕터당 3-5개의 이미지 영역 배치 (차트, 다이어그램, 예시 이미지 등)
+【다양한 레이아웃 요소 필수 사용!】
+- > 콜아웃: 팁, 중요, 예시, 데이터, 참고 (소제목당 2-3개)
+- [STEP 1] [STEP 2] [STEP 3]: 단계별 설명 (방법론/과정에 사용)
+- [SUMMARY] 핵심 요약: 섹션 끝에 요약 박스
+- [QUOTE] 인용구: 인상적인 문장이나 명언
+- [x] 체크리스트: 할 일, 준비물, 점검 항목
+- [HIGHLIGHT] 하이라이트: 특별히 강조할 핵심
+- [IMAGE: 설명] 이미지 영역 (챕터당 3-5개)
+- 목록(-): 세부 정보 정리
 
 【절대 금지】
 - 코드 블록, 구분선, 표 사용 금지
-- 한 줄짜리 짧은 문장만으로 구성 금지
-- "페이지" 언급 금지
 
-【분량 및 레이아웃 기준】
-- 각 소제목(###) 아래 최소 4-6개 문단
-- 각 문단은 3-5문장으로 구성
-- 콜아웃(>)은 소제목당 2-3개 적절히 배치
-- 목록(-)은 각 섹션당 1개 이상 포함
-- 문단 사이는 빈 줄로 구분하여 가독성 확보
+【분량 기준】
+- 각 소제목(###) 아래 4-6개 문단
+- 문단 사이 빈 줄로 구분
 
-다양한 시각적 요소(콜아웃, 이미지 영역, 목록)를 활용해 가독성 높은 콘텐츠를 작성해주세요.`
+다양한 레이아웃 요소를 적극 활용해 시각적으로 풍부한 콘텐츠를 작성해주세요!`
     }
 
     try {
@@ -786,6 +837,108 @@ ${tocText}
           }
         }
         lastBlockType = 'h3'
+      } else if (/^\[STEP\s*(\d+)\]/i.test(trimmed)) {
+        // 스텝 박스
+        const match = trimmed.match(/^\[STEP\s*(\d+)\]\s*(.*)$/i)
+        if (match) {
+          const stepNum = parseInt(match[1])
+          const content = match[2]
+          const stepStyle = STEP_STYLES[(stepNum - 1) % STEP_STYLES.length]
+          const lines = Math.ceil(content.length / 35)
+          blockHeight = 44 + (lines > 1 ? (lines - 1) * 16 : 0)
+          marginTop = 14
+          
+          block = {
+            id: generateId(), type: 'step', content: `STEP ${stepNum}|${content}`,
+            x, y: y + marginTop, width: contentWidth,
+            style: {
+              background: stepStyle.bg,
+              border: `2px solid ${stepStyle.border}`,
+              borderRadius: '10px',
+              padding: '12px 14px 12px 50px',
+              numBg: stepStyle.numBg,
+              numColor: stepStyle.numColor,
+            }
+          }
+          lastBlockType = 'step'
+        }
+      } else if (/^\[SUMMARY\]/i.test(trimmed)) {
+        // 핵심 요약 박스
+        const content = trimmed.replace(/^\[SUMMARY\]\s*/i, '')
+        const lines = Math.ceil(content.length / 35)
+        blockHeight = 50 + (lines > 1 ? (lines - 1) * 16 : 0)
+        marginTop = 16
+        
+        block = {
+          id: generateId(), type: 'summary', content: `${SUMMARY_BOX_STYLE.icon} 핵심 요약|${content}`,
+          x, y: y + marginTop, width: contentWidth,
+          style: {
+            background: SUMMARY_BOX_STYLE.bg,
+            color: SUMMARY_BOX_STYLE.color,
+            borderLeft: `5px solid ${SUMMARY_BOX_STYLE.border}`,
+            borderRadius: '8px',
+            padding: '14px 16px',
+          }
+        }
+        lastBlockType = 'summary'
+      } else if (/^\[QUOTE\]/i.test(trimmed)) {
+        // 인용구 박스 (큰따옴표)
+        const content = trimmed.replace(/^\[QUOTE\]\s*/i, '')
+        const lines = Math.ceil(content.length / 38)
+        blockHeight = 50 + (lines > 1 ? (lines - 1) * 16 : 0)
+        marginTop = 14
+        
+        block = {
+          id: generateId(), type: 'bigquote', content,
+          x, y: y + marginTop, width: contentWidth,
+          style: {
+            background: QUOTE_BOX_STYLE.bg,
+            color: QUOTE_BOX_STYLE.color,
+            borderLeft: `4px solid ${QUOTE_BOX_STYLE.border}`,
+            borderRadius: '8px',
+            padding: '16px 16px 16px 40px',
+            fontStyle: 'italic',
+          }
+        }
+        lastBlockType = 'bigquote'
+      } else if (/^\[x\]/i.test(trimmed) || /^\[✓\]/.test(trimmed)) {
+        // 체크리스트
+        const content = trimmed.replace(/^\[x\]\s*|\[✓\]\s*/i, '')
+        blockHeight = 24
+        marginTop = lastBlockType === 'checklist' ? 4 : 10
+        
+        block = {
+          id: generateId(), type: 'checklist', content: `✅ ${content}`,
+          x, y: y + marginTop, width: contentWidth,
+          style: {
+            background: CHECKLIST_STYLE.bg,
+            color: CHECKLIST_STYLE.textColor,
+            padding: '6px 12px',
+            borderRadius: '6px',
+          }
+        }
+        lastBlockType = 'checklist'
+      } else if (/^\[HIGHLIGHT\]/i.test(trimmed)) {
+        // 하이라이트 박스
+        const content = trimmed.replace(/^\[HIGHLIGHT\]\s*/i, '')
+        const highlightStyle = HIGHLIGHT_STYLES[Math.floor(Math.random() * HIGHLIGHT_STYLES.length)]
+        const lines = Math.ceil(content.length / 38)
+        blockHeight = 36 + (lines > 1 ? (lines - 1) * 16 : 0)
+        marginTop = 12
+        
+        block = {
+          id: generateId(), type: 'highlight', content: `${highlightStyle.icon} ${content}`,
+          x, y: y + marginTop, width: contentWidth,
+          style: {
+            background: highlightStyle.bg,
+            color: highlightStyle.color,
+            padding: '10px 14px',
+            borderRadius: '20px',
+            fontWeight: '600',
+            textAlign: 'center',
+          }
+        }
+        lastBlockType = 'highlight'
       } else if (trimmed.startsWith('> ')) {
         // 콜아웃: 내용에 따라 다른 스타일
         const content = trimmed.slice(2)
@@ -1644,7 +1797,28 @@ ${tocText}
                         </>
                       )
                     ) : block.type === 'quote' ? (
-                      <div className="quote-content">💡 {block.content}</div>
+                      <div className="quote-content">{block.content}</div>
+                    ) : block.type === 'step' ? (
+                      <div className="step-box">
+                        <div className="step-number" style={{ background: block.style?.numBg, color: block.style?.numColor }}>
+                          {block.content.split('|')[0].replace('STEP ', '')}
+                        </div>
+                        <div className="step-content">{block.content.split('|')[1]}</div>
+                      </div>
+                    ) : block.type === 'summary' ? (
+                      <div className="summary-box">
+                        <div className="summary-title">{block.content.split('|')[0]}</div>
+                        <div className="summary-content">{block.content.split('|')[1]}</div>
+                      </div>
+                    ) : block.type === 'bigquote' ? (
+                      <div className="bigquote-box">
+                        <span className="bigquote-mark">"</span>
+                        <span>{block.content}</span>
+                      </div>
+                    ) : block.type === 'checklist' ? (
+                      <div className="checklist-item">{block.content}</div>
+                    ) : block.type === 'highlight' ? (
+                      <div className="highlight-box">{block.content}</div>
                     ) : block.type === 'list' ? (
                       <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
                     ) : (
@@ -1696,7 +1870,28 @@ ${tocText}
                         <img src={block.content} alt="" style={{ width: '100%' }} />
                       )
                     ) : block.type === 'quote' ? (
-                      <div className="quote-content">💡 {block.content}</div>
+                      <div className="quote-content">{block.content}</div>
+                    ) : block.type === 'step' ? (
+                      <div className="step-box">
+                        <div className="step-number" style={{ background: block.style?.numBg, color: block.style?.numColor }}>
+                          {block.content.split('|')[0].replace('STEP ', '')}
+                        </div>
+                        <div className="step-content">{block.content.split('|')[1]}</div>
+                      </div>
+                    ) : block.type === 'summary' ? (
+                      <div className="summary-box">
+                        <div className="summary-title">{block.content.split('|')[0]}</div>
+                        <div className="summary-content">{block.content.split('|')[1]}</div>
+                      </div>
+                    ) : block.type === 'bigquote' ? (
+                      <div className="bigquote-box">
+                        <span className="bigquote-mark">"</span>
+                        <span>{block.content}</span>
+                      </div>
+                    ) : block.type === 'checklist' ? (
+                      <div className="checklist-item">{block.content}</div>
+                    ) : block.type === 'highlight' ? (
+                      <div className="highlight-box">{block.content}</div>
                     ) : block.type === 'list' ? (
                       <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
                     ) : (
