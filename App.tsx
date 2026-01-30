@@ -82,11 +82,13 @@ const CHAPTER_STYLES = [
   { background: 'linear-gradient(135deg, #e8f4f8, #d1e8f0)', color: '#1e3a5f', borderRadius: '6px' },
 ]
 
-// 콜아웃(인용구) - 프리미엄 스타일
-const QUOTE_STYLE = { 
-  background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', 
-  borderLeft: '4px solid #d97706',
-  color: '#92400e'
+// 콜아웃 스타일 (다양한 베리에이션)
+const CALLOUT_STYLES: Record<string, { bg: string; border: string; color: string; icon: string }> = {
+  tip: { bg: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '#d97706', color: '#92400e', icon: '💡' },
+  important: { bg: 'linear-gradient(135deg, #fef2f2, #fecaca)', border: '#dc2626', color: '#991b1b', icon: '❗' },
+  example: { bg: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '#16a34a', color: '#166534', icon: '📌' },
+  data: { bg: 'linear-gradient(135deg, #eff6ff, #dbeafe)', border: '#2563eb', color: '#1e40af', icon: '📊' },
+  note: { bg: 'linear-gradient(135deg, #faf5ff, #f3e8ff)', border: '#9333ea', color: '#7c3aed', icon: '📝' },
 }
 
 // 소제목 스타일
@@ -353,41 +355,52 @@ export default function App() {
     let userPrompt = prompt
 
     if (mode === 'ebook' && bookTitle) {
-      userPrompt = `프리미엄 전자책을 작성해주세요. 전문 작가 수준의 퀄리티로 작성합니다.
+      userPrompt = `프리미엄 전자책을 작성해주세요. 베스트셀러 수준의 퀄리티와 깊이로 작성합니다.
 
 【책 정보】
 제목: ${bookTitle}
 ${chapters ? `챕터 구성: ${chapters}` : ''}
-분량: 약 ${pageCount}페이지 분량
+분량: 약 ${pageCount}페이지 (각 페이지에 충분한 내용)
 주제: ${prompt}
 
-【작성 스타일】
-- 전문적이고 신뢰감 있는 톤
-- 구체적인 예시와 데이터 포함
-- 독자가 바로 실행할 수 있는 실용적인 내용
-- 각 섹션마다 핵심 인사이트 제공
+【핵심 작성 원칙 - 매우 중요】
+1. **풍부한 설명**: 모든 개념은 3-4문장 이상으로 상세히 설명
+2. **구체적인 예시**: 추상적 설명 후 반드시 실제 예시 추가
+3. **데이터/통계**: 신뢰성 있는 수치와 연구 결과 인용
+4. **단계별 설명**: 방법론은 구체적인 스텝으로 분해
+5. **독자 공감**: "~한 경험이 있으신가요?"처럼 독자 참여 유도
 
-【형식 규칙】
-- # 책 제목 (첫 페이지, 한 번만)
-- ## 챕터/장 제목
-- ### 소제목/섹션
-- > 핵심 포인트나 인용구 (중요한 내용 강조)
-- **굵은 글씨**로 키워드 강조
-- 목록은 - 또는 1. 2. 3.
+【콜아웃 활용 (> 기호 사용)】
+- > 💡 팁: 실용적인 조언
+- > 중요: 핵심 포인트 강조
+- > 예시: 구체적인 사례
+- > 데이터: 통계나 연구 결과
+- > 참고: 추가 정보
+
+【문단 구성】
+- 서론: 왜 이 주제가 중요한지 (독자의 문제점 공감)
+- 본론: 해결책을 상세히 설명 (예시, 데이터 포함)
+- 결론: 핵심 요약 + 실천 방안
+
+【형식】
+- # 책 제목 (맨 처음 한 번)
+- ## 챕터 제목
+- ### 소제목
+- > 콜아웃 박스
+- **굵게** 키워드 강조
+- 목록 - 또는 1. 2. 3.
 
 【절대 금지】
-- 코드 블록(\`\`\`) 사용 금지
-- --- 구분선 사용 금지
-- 표(테이블) 사용 금지
+- 코드 블록, 구분선, 표 사용 금지
+- 한 줄짜리 짧은 문장만으로 구성 금지
 - "페이지" 언급 금지
 
-【품질 기준】
-- 서론에서 독자의 관심을 사로잡는 훅(hook) 사용
-- 각 챕터는 명확한 시작-전개-마무리 구조
-- 실제 사례나 통계로 신뢰성 확보
-- 마무리에 실행 가능한 액션 아이템 제시
+【분량 기준】
+- 각 소제목(###) 아래 최소 3-5개 문단
+- 각 문단은 2-4문장으로 구성
+- 콜아웃은 챕터당 2-3개 적절히 배치
 
-연속된 흐름으로 작성해주세요.`
+깊이 있고 가치 있는 콘텐츠를 작성해주세요.`
     }
 
     try {
@@ -532,13 +545,36 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
         }
         lastBlockType = 'h3'
       } else if (trimmed.startsWith('> ')) {
-        // 콜아웃: 노란색 고정
-        blockHeight = 32
-        marginTop = 6
+        // 콜아웃: 내용에 따라 다른 스타일
+        const content = trimmed.slice(2)
+        const contentLower = content.toLowerCase()
+        
+        let calloutType = 'tip' // 기본값
+        if (contentLower.includes('중요') || contentLower.includes('주의') || contentLower.includes('경고')) {
+          calloutType = 'important'
+        } else if (contentLower.includes('예시') || contentLower.includes('사례') || contentLower.includes('예를 들')) {
+          calloutType = 'example'
+        } else if (contentLower.includes('데이터') || contentLower.includes('통계') || contentLower.includes('연구') || contentLower.includes('%')) {
+          calloutType = 'data'
+        } else if (contentLower.includes('참고') || contentLower.includes('노트') || contentLower.includes('메모')) {
+          calloutType = 'note'
+        }
+        
+        const style = CALLOUT_STYLES[calloutType]
+        const lines = Math.ceil(content.length / 45)
+        blockHeight = 28 + (lines > 1 ? (lines - 1) * 14 : 0)
+        marginTop = 8
+        
         block = {
-          id: generateId(), type: 'quote', content: trimmed.slice(2),
+          id: generateId(), type: 'quote', content: `${style.icon} ${content}`,
           x, y: y + marginTop, width: contentWidth,
-          style: { ...QUOTE_STYLE, padding: '10px 14px' }
+          style: { 
+            background: style.bg, 
+            borderLeft: `4px solid ${style.border}`,
+            color: style.color,
+            padding: '12px 14px',
+            borderRadius: '6px'
+          }
         }
         lastBlockType = 'quote'
       } else if (trimmed.startsWith('- ') || /^\d+\./.test(trimmed)) {
