@@ -70,24 +70,32 @@ const getPreviewSize = (size: PageSize) => {
   return { width, height: width * ratio }
 }
 
-// 챕터 헤딩 스타일 (다양한 레이아웃)
+// 챕터 헤딩 스타일 (프리미엄 레이아웃)
 const CHAPTER_STYLES = [
-  // 스타일 1: 그라데이션 배경 + 둥근 모서리
-  { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', borderRadius: '8px' },
-  // 스타일 2: 왼쪽 굵은 테두리
-  { background: '#f8fafc', color: '#1e40af', borderLeft: '6px solid #3b82f6', borderRadius: '0' },
-  // 스타일 3: 밑줄 스타일
-  { background: 'transparent', color: '#1e40af', borderBottom: '3px solid #3b82f6', borderRadius: '0' },
-  // 스타일 4: 아웃라인 박스
-  { background: '#fff', color: '#6366f1', border: '2px solid #6366f1', borderRadius: '8px' },
+  // 스타일 1: 클래식 네이비
+  { background: 'linear-gradient(135deg, #1e3a5f, #2d5a87)', color: '#fff', borderRadius: '6px' },
+  // 스타일 2: 모던 그레이 + 골드 악센트
+  { background: '#f8f9fa', color: '#2d3748', borderLeft: '5px solid #d4af37', borderRadius: '0' },
+  // 스타일 3: 미니멀 언더라인
+  { background: 'transparent', color: '#1a202c', borderBottom: '2px solid #2d3748', borderRadius: '0' },
+  // 스타일 4: 소프트 그라데이션
+  { background: 'linear-gradient(135deg, #e8f4f8, #d1e8f0)', color: '#1e3a5f', borderRadius: '6px' },
 ]
 
-// 콜아웃(인용구) - 노란색 고정
+// 콜아웃(인용구) - 프리미엄 스타일
 const QUOTE_STYLE = { 
-  background: 'linear-gradient(135deg, #fef3c7, #fde68a)', 
-  borderLeft: '4px solid #f59e0b',
+  background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', 
+  borderLeft: '4px solid #d97706',
   color: '#92400e'
 }
+
+// 소제목 스타일
+const SUBHEADING_STYLES = [
+  { color: '#be123c', borderLeft: '3px solid #be123c' },
+  { color: '#0369a1', borderLeft: '3px solid #0369a1' },
+  { color: '#7c3aed', borderLeft: '3px solid #7c3aed' },
+  { color: '#059669', borderLeft: '3px solid #059669' },
+]
 
 let blockIdCounter = 0
 const generateId = () => `block-${++blockIdCounter}`
@@ -346,30 +354,41 @@ export default function App() {
     let userPrompt = prompt
 
     if (mode === 'ebook' && bookTitle) {
-      userPrompt = `전자책을 작성해주세요.
+      userPrompt = `프리미엄 전자책을 작성해주세요. 전문 작가 수준의 퀄리티로 작성합니다.
 
+【책 정보】
 제목: ${bookTitle}
 ${chapters ? `챕터 구성: ${chapters}` : ''}
-분량: 약 ${pageCount}페이지 분량 (페이지 구분 없이 연속으로 작성)
-용지: ${sizeInfo.label}
-
+분량: 약 ${pageCount}페이지 분량
 주제: ${prompt}
 
-형식:
-- # 책 제목 (맨 처음)
-- ## 챕터 제목
-- ### 소제목
-- > 중요 포인트 (인용/강조)
-- 표는 Markdown 형식
-- **굵게** 강조
+【작성 스타일】
+- 전문적이고 신뢰감 있는 톤
+- 구체적인 예시와 데이터 포함
+- 독자가 바로 실행할 수 있는 실용적인 내용
+- 각 섹션마다 핵심 인사이트 제공
+
+【형식 규칙】
+- # 책 제목 (첫 페이지, 한 번만)
+- ## 챕터/장 제목
+- ### 소제목/섹션
+- > 핵심 포인트나 인용구 (중요한 내용 강조)
+- **굵은 글씨**로 키워드 강조
 - 목록은 - 또는 1. 2. 3.
 
-절대 금지사항:
+【절대 금지】
 - 코드 블록(\`\`\`) 사용 금지
 - --- 구분선 사용 금지
-- 페이지 구분 표시 금지
+- 표(테이블) 사용 금지
+- "페이지" 언급 금지
 
-연속된 글로 작성해주세요. 페이지 나눔은 시스템이 자동으로 합니다.`
+【품질 기준】
+- 서론에서 독자의 관심을 사로잡는 훅(hook) 사용
+- 각 챕터는 명확한 시작-전개-마무리 구조
+- 실제 사례나 통계로 신뢰성 확보
+- 마무리에 실행 가능한 액션 아이템 제시
+
+연속된 흐름으로 작성해주세요.`
     }
 
     try {
@@ -433,8 +452,9 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
 
   // Markdown → 페이지/블록 변환 (디자인 다양화)
   const parseMarkdownToPages = (content: string, size: { width: number; height: number }): Page[] => {
-    // 챕터별 스타일 인덱스
+    // 스타일 인덱스
     let chapterIdx = 0
+    let subheadingIdx = 0
     
     const allLines = content.split('\n')
     const contentWidth = size.width * 0.84
@@ -468,18 +488,18 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
       let block: Block | null = null
       
       if (trimmed.startsWith('# ')) {
-        // 책 제목: 보라색 그라데이션 고정
-        blockHeight = 50
+        // 책 제목: 프리미엄 네이비 스타일
+        blockHeight = 55
         marginTop = lastBlockType ? 12 : 0
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(2),
           x, y: y + marginTop, width: contentWidth,
           style: { 
             fontSize: 22, fontWeight: 'bold', textAlign: 'center', 
-            background: 'linear-gradient(135deg, #667eea, #764ba2)', 
+            background: 'linear-gradient(135deg, #1e3a5f, #34495e)', 
             color: '#fff', 
-            padding: '14px 16px',
-            borderRadius: '10px'
+            padding: '16px 20px',
+            borderRadius: '8px'
           }
         }
         lastBlockType = 'h1'
@@ -496,17 +516,19 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
         }
         lastBlockType = 'h2'
       } else if (trimmed.startsWith('### ')) {
-        // 소제목: 왼쪽 라인 + 연한 배경
+        // 소제목: 다양한 색상
         blockHeight = 24
-        marginTop = 8
+        marginTop = 10
+        const subStyle = SUBHEADING_STYLES[subheadingIdx % SUBHEADING_STYLES.length]
+        subheadingIdx++
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(4),
           x, y: y + marginTop, width: contentWidth,
           style: { 
-            fontSize: 11, fontWeight: '600', color: '#dc2626',
+            fontSize: 11, fontWeight: '600', 
+            ...subStyle,
             background: 'transparent',
             padding: '4px 10px', 
-            borderLeft: '3px solid #dc2626'
           }
         }
         lastBlockType = 'h3'
@@ -529,19 +551,30 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
         }
         lastBlockType = 'list'
       } else if (trimmed.startsWith('|')) {
-        blockHeight = 18
-        marginTop = lastBlockType === 'table' ? 0 : 4
+        // 테이블 행 -> 리스트 형태로 변환
+        // |---|---| 같은 구분선은 무시
+        if (trimmed.includes('---')) continue
+        
+        // 테이블 내용 추출
+        const cells = trimmed.split('|').filter(c => c.trim())
+        if (cells.length === 0) continue
+        
+        const content = cells.map(c => c.trim()).join(' • ')
+        blockHeight = 16
+        marginTop = lastBlockType === 'table' ? 2 : 6
         block = {
-          id: generateId(), type: 'table', content: trimmed,
+          id: generateId(), type: 'list', content: `📌 ${content}`,
           x, y: y + marginTop, width: contentWidth,
+          style: { background: '#f8fafc', padding: '4px 8px', borderRadius: '4px' }
         }
         lastBlockType = 'table'
       } else {
-        blockHeight = 16 + Math.floor(trimmed.length / 55) * 13
-        marginTop = lastBlockType === 'text' ? 3 : 5
+        blockHeight = 16 + Math.floor(trimmed.length / 50) * 14
+        marginTop = lastBlockType === 'text' ? 4 : 6
         block = {
           id: generateId(), type: 'text', content: trimmed,
           x, y: y + marginTop, width: contentWidth,
+          style: { color: '#2d3748' }
         }
         lastBlockType = 'text'
       }
