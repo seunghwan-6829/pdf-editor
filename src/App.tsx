@@ -1528,62 +1528,23 @@ ${tocText}
     }
   }
 
-  // 페이지 마우스 다운 (드래그 선택 시작)
+  // 페이지 마우스 다운 - 빈 공간 클릭 시 선택 해제만
   const handlePageMouseDown = (e: React.MouseEvent) => {
     if (!isEditing) return
-    if (isBlockAction.current) return
     
     const target = e.target as HTMLElement
-    if (!target.classList.contains('book-page')) return
-    
-    const rect = pageRef.current!.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    
-    setIsDragging(false)
-    setDragBlockId(null)
-    setIsSelecting(true)
-    setSelectionStart({ x, y })
-    setSelectionEnd({ x, y })
-    setSelectedBlockIds([])
+    if (target.classList.contains('book-page')) {
+      setSelectedBlockIds([])
+    }
   }
 
-  // 드래그 중
+  // 드래그 중 (블록 이동만)
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!pageRef.current) return
-    if (isBlockAction.current) return
     
     const rect = pageRef.current.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
-    
-    // 드래그 선택
-    if (isSelecting && !isDragging) {
-      setSelectionEnd({ x: mouseX, y: mouseY })
-      
-      const selMinX = Math.min(selectionStart.x, mouseX)
-      const selMaxX = Math.max(selectionStart.x, mouseX)
-      const selMinY = Math.min(selectionStart.y, mouseY)
-      const selMaxY = Math.max(selectionStart.y, mouseY)
-      
-      if (Math.abs(selMaxX - selMinX) < 20 && Math.abs(selMaxY - selMinY) < 20) {
-        return
-      }
-      
-      const selected = currentPage?.blocks
-        .filter(b => {
-          if (b.locked) return false
-          let blockHeight = b.type === 'heading' ? 40 : 22
-          const blockCenterX = b.x + b.width / 2
-          const blockCenterY = b.y + blockHeight / 2
-          return blockCenterX >= selMinX && blockCenterX <= selMaxX && 
-                 blockCenterY >= selMinY && blockCenterY <= selMaxY
-        })
-        .map(b => b.id) || []
-      
-      setSelectedBlockIds(selected)
-      return
-    }
     
     // 블록 드래그 (선택된 모든 블록 함께 이동)
     if (isDragging && selectedBlockIds.length > 0 && dragBlockId) {
@@ -1736,54 +1697,12 @@ ${tocText}
     input.click()
   }
 
-  // 도형 추가
+  // 도형 추가 - 임시 비활성화
+  /*
   const addShape = (shapeType: 'rect' | 'circle') => {
-    const newBlockId = generateId()
-    // 현재 페이지의 최대 zIndex 찾기
-    const maxZIndex = currentPage?.blocks.reduce((max, b) => Math.max(max, b.style?.zIndex || 0), 0) || 0
-    
-    const newBlock: Block = {
-      id: newBlockId,
-      type: 'shape',
-      content: shapeType,
-      x: previewSize.width * 0.3,
-      y: previewSize.height * 0.3,
-      width: 100,
-      height: 70,
-      rotation: 0,
-      style: {
-        shapeType,
-        fill: '#3b82f6',
-        stroke: '#1d4ed8',
-        strokeWidth: 2,
-        zIndex: maxZIndex + 1,
-      }
-    }
-    
-    // 블록 조작 플래그 ON
-    isBlockAction.current = true
-    
-    // 모든 상태 완전 초기화
-    setIsSelecting(false)
-    setIsDragging(false)
-    setDragBlockId(null)
-    setSelectionStart({ x: 0, y: 0 })
-    setSelectionEnd({ x: 0, y: 0 })
-    
-    // 페이지 업데이트
-    const newPages = pages.map((page, idx) => {
-      if (idx !== currentPageIndex) return page
-      return { ...page, blocks: [...page.blocks, newBlock] }
-    })
-    setPages(newPages)
-    saveToHistory(newPages)
-    
-    // 즉시 새 도형만 선택!
-    setSelectedBlockIds([newBlockId])
-    
-    // 잠시 후 플래그 해제
-    setTimeout(() => { isBlockAction.current = false }, 100)
+    // 비활성화됨
   }
+  */
 
   // 뒤로 보내기 (zIndex 기반)
   const sendToBack = () => {
@@ -1932,8 +1851,8 @@ ${tocText}
     ? currentPage?.blocks.find(b => b.id === selectedBlockIds[0]) 
     : null
 
-  // 선택 박스 스타일
-  const selectionBoxStyle = isSelecting ? {
+  // 선택 박스 스타일 - 비활성화됨
+  const selectionBoxStyle = false ? {
     left: Math.min(selectionStart.x, selectionEnd.x),
     top: Math.min(selectionStart.y, selectionEnd.y),
     width: Math.abs(selectionEnd.x - selectionStart.x),
