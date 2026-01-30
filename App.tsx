@@ -177,6 +177,7 @@ export default function App() {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [dragBlockId, setDragBlockId] = useState<string | null>(null)  // 드래그 시작한 블록
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
+  const [clipboardBlocks, setClipboardBlocks] = useState<Block[]>([])  // 복사한 블록들
   const [editingText, setEditingText] = useState('')
   
   // 드래그 선택 박스
@@ -310,11 +311,12 @@ export default function App() {
   // 미리보기 영역 포커스 상태
   const [isPreviewFocused, setIsPreviewFocused] = useState(false)
 
-  // 미리보기 영역 Ctrl+Z / Ctrl+Y 핸들러
+  // 미리보기 영역 Ctrl+Z / Ctrl+Y / Ctrl+C / Ctrl+V 핸들러
   const handlePreviewKeyDown = (e: React.KeyboardEvent) => {
     // 텍스트 입력 중이면 무시
     if (editingBlockId) return
     
+    // Ctrl+Z: 실행 취소
     if (e.ctrlKey && e.key === 'z') {
       e.preventDefault()
       e.stopPropagation()
@@ -324,6 +326,7 @@ export default function App() {
         setPages(JSON.parse(JSON.stringify(history[newIndex])))
       }
     }
+    // Ctrl+Y: 다시 실행
     if (e.ctrlKey && e.key === 'y') {
       e.preventDefault()
       e.stopPropagation()
@@ -331,6 +334,52 @@ export default function App() {
         const newIndex = historyIndex + 1
         setHistoryIndex(newIndex)
         setPages(JSON.parse(JSON.stringify(history[newIndex])))
+      }
+    }
+    // Ctrl+C: 복사
+    if (e.ctrlKey && e.key === 'c') {
+      e.preventDefault()
+      e.stopPropagation()
+      if (selectedBlockIds.length > 0 && currentPage) {
+        const blocksToCopy = currentPage.blocks.filter(b => selectedBlockIds.includes(b.id))
+        if (blocksToCopy.length > 0) {
+          setClipboardBlocks(JSON.parse(JSON.stringify(blocksToCopy)))
+        }
+      }
+    }
+    // Ctrl+V: 붙여넣기
+    if (e.ctrlKey && e.key === 'v') {
+      e.preventDefault()
+      e.stopPropagation()
+      if (clipboardBlocks.length > 0 && pages.length > 0) {
+        const newBlocks = clipboardBlocks.map(b => ({
+          ...b,
+          id: generateId(),  // 새로운 ID 부여
+        }))
+        const newPages = [...pages]
+        newPages[currentPageIndex] = {
+          ...newPages[currentPageIndex],
+          blocks: [...newPages[currentPageIndex].blocks, ...newBlocks]
+        }
+        setPages(newPages)
+        saveToHistory(newPages)
+        // 붙여넣은 블록들 선택
+        setSelectedBlockIds(newBlocks.map(b => b.id))
+      }
+    }
+    // Delete: 선택한 블록 삭제
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedBlockIds.length > 0 && currentPage) {
+        e.preventDefault()
+        e.stopPropagation()
+        const newPages = [...pages]
+        newPages[currentPageIndex] = {
+          ...newPages[currentPageIndex],
+          blocks: newPages[currentPageIndex].blocks.filter(b => !selectedBlockIds.includes(b.id))
+        }
+        setPages(newPages)
+        saveToHistory(newPages)
+        setSelectedBlockIds([])
       }
     }
   }
