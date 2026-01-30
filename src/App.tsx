@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { generatePdfFromElement } from './pdf/pdfGenerator'
-import { initSupabase, fetchProjects, saveProject, deleteProjectFromDB } from './lib/supabase'
+import { initSupabase, fetchProjects, saveProject, deleteProjectFromDB, ProjectRow } from './lib/supabase'
 import './App.css'
 
 // Supabase 설정 (자동 연결)
@@ -157,7 +157,7 @@ export default function App() {
     setIsLoadingProjects(true)
     try {
       const rows = await fetchProjects()
-      const converted: Project[] = rows.map(row => ({
+      const converted: Project[] = rows.map((row: ProjectRow) => ({
         id: row.id,
         title: row.title,
         createdAt: row.created_at,
