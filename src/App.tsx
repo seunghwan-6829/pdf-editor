@@ -1431,8 +1431,9 @@ ${tocText}
     e.stopPropagation()
     e.preventDefault()
     
-    // 드래그 선택 중이면 무시
-    if (isSelecting) return
+    // 모든 드래그/선택 상태 초기화
+    setIsSelecting(false)
+    setIsDragging(false)
     
     const block = currentPage?.blocks.find(b => b.id === blockId)
     if (block?.locked) return
@@ -1443,6 +1444,7 @@ ${tocText}
         prev.includes(blockId) ? prev.filter(id => id !== blockId) : [...prev, blockId]
       )
     } else {
+      // 단일 선택 - 무조건 이 블록만!
       setSelectedBlockIds([blockId])
     }
   }
@@ -1487,13 +1489,13 @@ ${tocText}
     e.preventDefault()
     e.stopPropagation()
     
-    // 드래그 선택 중지
+    // 드래그 선택 완전 중지!
     setIsSelecting(false)
+    setSelectionStart({ x: 0, y: 0 })
+    setSelectionEnd({ x: 0, y: 0 })
     
-    // 선택되지 않은 블록 클릭 시 해당 블록만 선택
-    if (!selectedBlockIds.includes(blockId)) {
-      setSelectedBlockIds([blockId])
-    }
+    // 이 블록만 선택 (무조건)
+    setSelectedBlockIds([blockId])
     
     // 드래그 시작한 블록 기록
     setDragBlockId(blockId)
@@ -1511,14 +1513,23 @@ ${tocText}
     }
   }
 
-  // 페이지 마우스 다운 (드래그 선택 시작)
+  // 페이지 마우스 다운 (드래그 선택 시작) - 빈 공간 클릭 시에만!
   const handlePageMouseDown = (e: React.MouseEvent) => {
-    if (!isEditing || e.target !== pageRef.current) return
+    if (!isEditing) return
+    
+    // 클릭한 요소가 정확히 book-page인지 확인 (블록이 아닌 빈 공간)
+    const target = e.target as HTMLElement
+    if (!target.classList.contains('book-page')) return
     
     const rect = pageRef.current!.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     
+    // 드래그 상태 초기화
+    setIsDragging(false)
+    setDragBlockId(null)
+    
+    // 드래그 선택 시작
     setIsSelecting(true)
     setSelectionStart({ x, y })
     setSelectionEnd({ x, y })
@@ -1532,8 +1543,8 @@ ${tocText}
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
     
-    // 드래그 선택
-    if (isSelecting) {
+    // 드래그 선택 (빈 공간에서 시작된 경우만)
+    if (isSelecting && !isDragging) {
       setSelectionEnd({ x: mouseX, y: mouseY })
       
       // 선택 영역
@@ -1542,8 +1553,8 @@ ${tocText}
       const selMinY = Math.min(selectionStart.y, mouseY)
       const selMaxY = Math.max(selectionStart.y, mouseY)
       
-      // 선택 영역이 충분히 큰 경우에만 선택 (최소 10px)
-      if (Math.abs(selMaxX - selMinX) < 10 && Math.abs(selMaxY - selMinY) < 10) {
+      // 선택 영역이 충분히 큰 경우에만 선택 (최소 20px - 더 엄격하게)
+      if (Math.abs(selMaxX - selMinX) < 20 && Math.abs(selMaxY - selMinY) < 20) {
         return
       }
       
@@ -1559,6 +1570,8 @@ ${tocText}
             blockHeight = 32
           } else if (b.type === 'list') {
             blockHeight = 16
+          } else if (b.type === 'shape') {
+            blockHeight = b.height || 70
           }
           
           // 블록 중심점이 선택 영역 안에 있는지 확인
@@ -1742,14 +1755,16 @@ ${tocText}
         fill: '#3b82f6',
         stroke: '#1d4ed8',
         strokeWidth: 2,
-        zIndex: maxZIndex + 1,  // 맨 앞에 배치
+        zIndex: maxZIndex + 1,
       }
     }
     
-    // 먼저 선택 초기화
-    setSelectedBlockIds([])
-    setIsDragging(false)
+    // 모든 상태 완전 초기화
     setIsSelecting(false)
+    setIsDragging(false)
+    setDragBlockId(null)
+    setSelectionStart({ x: 0, y: 0 })
+    setSelectionEnd({ x: 0, y: 0 })
     
     // 페이지 업데이트
     const newPages = pages.map((page, idx) => {
@@ -1759,10 +1774,8 @@ ${tocText}
     setPages(newPages)
     saveToHistory(newPages)
     
-    // 다음 틱에서 새 도형만 선택
-    requestAnimationFrame(() => {
-      setSelectedBlockIds([newBlockId])
-    })
+    // 즉시 새 도형만 선택!
+    setSelectedBlockIds([newBlockId])
   }
 
   // 뒤로 보내기 (zIndex 기반)
