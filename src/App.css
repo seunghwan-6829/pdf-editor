@@ -1075,10 +1075,20 @@ body {
 /* 도형 */
 .block.shape {
   position: absolute;
+  pointer-events: auto;
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.block.shape.selected {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 .shape-box {
   transition: all 0.15s;
+  pointer-events: auto;
 }
 
 /* AI 추가 섹션 체크박스 */

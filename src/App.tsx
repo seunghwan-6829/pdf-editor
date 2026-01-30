@@ -1429,6 +1429,10 @@ ${tocText}
   const handleBlockClick = (e: React.MouseEvent, blockId: string) => {
     if (!isEditing) return
     e.stopPropagation()
+    e.preventDefault()
+    
+    // 드래그 선택 중이면 무시
+    if (isSelecting) return
     
     const block = currentPage?.blocks.find(b => b.id === blockId)
     if (block?.locked) return
@@ -1482,6 +1486,9 @@ ${tocText}
     
     e.preventDefault()
     e.stopPropagation()
+    
+    // 드래그 선택 중지
+    setIsSelecting(false)
     
     // 선택되지 않은 블록 클릭 시 해당 블록만 선택
     if (!selectedBlockIds.includes(blockId)) {
@@ -1718,6 +1725,9 @@ ${tocText}
   // 도형 추가
   const addShape = (shapeType: 'rect' | 'circle') => {
     const newBlockId = generateId()
+    // 현재 페이지의 최대 zIndex 찾기
+    const maxZIndex = currentPage?.blocks.reduce((max, b) => Math.max(max, b.style?.zIndex || 0), 0) || 0
+    
     const newBlock: Block = {
       id: newBlockId,
       type: 'shape',
@@ -1725,43 +1735,67 @@ ${tocText}
       x: previewSize.width * 0.3,
       y: previewSize.height * 0.3,
       width: 100,
-      height: 70,  // 초기 높이
+      height: 70,
       rotation: 0,
       style: {
         shapeType,
         fill: '#3b82f6',
         stroke: '#1d4ed8',
         strokeWidth: 2,
-        zIndex: 0,
+        zIndex: maxZIndex + 1,  // 맨 앞에 배치
       }
     }
-    // 기존 선택 해제하고 새 도형만 선택
-    setSelectedBlockIds([newBlockId])
-    updatePages(prev => prev.map((page, idx) => {
+    
+    // 먼저 선택 초기화
+    setSelectedBlockIds([])
+    setIsDragging(false)
+    setIsSelecting(false)
+    
+    // 페이지 업데이트
+    const newPages = pages.map((page, idx) => {
       if (idx !== currentPageIndex) return page
       return { ...page, blocks: [...page.blocks, newBlock] }
-    }))
+    })
+    setPages(newPages)
+    saveToHistory(newPages)
+    
+    // 다음 틱에서 새 도형만 선택
+    requestAnimationFrame(() => {
+      setSelectedBlockIds([newBlockId])
+    })
   }
 
-  // 뒤로 보내기
+  // 뒤로 보내기 (zIndex 기반)
   const sendToBack = () => {
     if (selectedBlockIds.length === 0 || !currentPage) return
+    const minZIndex = currentPage.blocks.reduce((min, b) => Math.min(min, b.style?.zIndex || 0), 0)
     updatePages(prev => prev.map((page, idx) => {
       if (idx !== currentPageIndex) return page
-      const selected = page.blocks.filter(b => selectedBlockIds.includes(b.id))
-      const others = page.blocks.filter(b => !selectedBlockIds.includes(b.id))
-      return { ...page, blocks: [...selected, ...others] }
+      return {
+        ...page,
+        blocks: page.blocks.map(b => 
+          selectedBlockIds.includes(b.id) 
+            ? { ...b, style: { ...b.style, zIndex: minZIndex - 1 } }
+            : b
+        )
+      }
     }))
   }
 
-  // 앞으로 가져오기
+  // 앞으로 가져오기 (zIndex 기반)
   const bringToFront = () => {
     if (selectedBlockIds.length === 0 || !currentPage) return
+    const maxZIndex = currentPage.blocks.reduce((max, b) => Math.max(max, b.style?.zIndex || 0), 0)
     updatePages(prev => prev.map((page, idx) => {
       if (idx !== currentPageIndex) return page
-      const selected = page.blocks.filter(b => selectedBlockIds.includes(b.id))
-      const others = page.blocks.filter(b => !selectedBlockIds.includes(b.id))
-      return { ...page, blocks: [...others, ...selected] }
+      return {
+        ...page,
+        blocks: page.blocks.map(b => 
+          selectedBlockIds.includes(b.id) 
+            ? { ...b, style: { ...b.style, zIndex: maxZIndex + 1 } }
+            : b
+        )
+      }
     }))
   }
 
@@ -2441,7 +2475,8 @@ ${tocText}
                   <div className="selection-box" style={selectionBoxStyle} />
                 )}
                 
-                {currentPage.blocks.map(block => (
+                {/* zIndex 순서로 정렬하여 렌더링 */}
+                {[...currentPage.blocks].sort((a, b) => (a.style?.zIndex || 0) - (b.style?.zIndex || 0)).map(block => (
                   <div
                     key={block.id}
                     className={`block ${block.type} ${selectedBlockIds.includes(block.id) ? 'selected' : ''} ${isEditing ? 'editable' : ''} ${block.locked ? 'locked' : ''} ${editingBlockId === block.id ? 'editing-active' : ''}`}
@@ -2449,6 +2484,7 @@ ${tocText}
                       left: block.x,
                       top: block.y,
                       width: block.width,
+                      zIndex: block.style?.zIndex || 0,
                       fontSize: block.style?.fontSize,
                       fontWeight: block.style?.fontWeight,
                       color: block.style?.color,
