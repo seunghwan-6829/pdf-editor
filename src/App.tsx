@@ -1443,6 +1443,9 @@ ${tocText}
     e.stopPropagation()
     e.preventDefault()
     
+    // 이미 다른 블록 조작 중이면 무시
+    if (isBlockAction.current) return
+    
     // 블록 조작 플래그 (즉시 반영!)
     isBlockAction.current = true
     
@@ -1466,7 +1469,7 @@ ${tocText}
     }
     
     // 다음 틱에서 플래그 해제
-    setTimeout(() => { isBlockAction.current = false }, 0)
+    setTimeout(() => { isBlockAction.current = false }, 50)
   }
 
   // 블록 더블클릭
@@ -1503,6 +1506,9 @@ ${tocText}
   const handleMouseDown = (e: React.MouseEvent, blockId: string) => {
     if (!isEditing || isResizing) return
     
+    // 이미 다른 블록 조작 중이면 무시
+    if (isBlockAction.current) return
+    
     const block = currentPage?.blocks.find(b => b.id === blockId)
     if (block?.locked) return
     
@@ -1512,9 +1518,10 @@ ${tocText}
     // 블록 조작 플래그 (즉시 반영!)
     isBlockAction.current = true
     
-    
-    // 이 블록만 선택 (무조건)
-    setSelectedBlockIds([blockId])
+    // 이미 이 블록이 선택되어 있으면 선택 유지, 아니면 이 블록만 선택
+    if (!selectedBlockIds.includes(blockId)) {
+      setSelectedBlockIds([blockId])
+    }
     
     // 드래그 시작한 블록 기록
     setDragBlockId(blockId)
@@ -1535,6 +1542,9 @@ ${tocText}
   // 페이지 마우스 다운 - 빈 공간 클릭 시 선택 해제만
   const handlePageMouseDown = (e: React.MouseEvent) => {
     if (!isEditing) return
+    
+    // 이미 다른 블록 조작 중이면 무시
+    if (isBlockAction.current) return
     
     const target = e.target as HTMLElement
     if (target.classList.contains('book-page')) {
