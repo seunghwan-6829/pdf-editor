@@ -13,9 +13,18 @@ export async function generatePdfFromElement(
   container: HTMLElement,
   title: string,
   pageSize: PageSize = 'A4',
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  startPage?: number,  // 시작 페이지 (1-based, 프론트 기준)
+  endPage?: number     // 끝 페이지 (1-based, 프론트 기준)
 ): Promise<void> {
-  const pages = container.querySelectorAll('.book-page')
+  const allPages = container.querySelectorAll('.book-page')
+  
+  // 0번 페이지(더미)를 제외하고 범위 계산
+  const start = startPage ? startPage : 1  // 프론트 1페이지 = 실제 인덱스 1
+  const end = endPage ? endPage : (allPages.length - 1)
+  
+  // 실제 인덱스로 변환 (프론트 1 = 실제 1, 프론트 2 = 실제 2)
+  const pages = Array.from(allPages).slice(start, end + 1)
   const totalPages = pages.length
   
   if (totalPages === 0) {

@@ -1454,6 +1454,124 @@ body {
   opacity: 1;
 }
 
+/* 페이지 사이 삽입 버튼 */
+.insert-page-btn {
+  width: 100%;
+  height: 20px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.insert-page-btn:hover {
+  opacity: 1;
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.insert-page-btn span {
+  font-size: 0.9rem;
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.pages-list:hover .insert-page-btn {
+  opacity: 0.5;
+}
+
+/* 톤앤무드 선택 */
+.tone-select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tone-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* PDF 내보내기 모달 */
+.export-modal {
+  width: 360px;
+}
+
+.export-info {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.export-range {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.range-input {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.range-input label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.range-input input {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.range-input input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.range-separator {
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  padding-bottom: 0.5rem;
+}
+
+.export-summary {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--accent);
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.export-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.export-actions .btn {
+  justify-content: center;
+}
+
 /* PDF용 숨김 */
 .pdf-hidden {
   position: absolute;

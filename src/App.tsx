@@ -189,6 +189,13 @@ export default function App() {
   const [includeToc, setIncludeToc] = useState(false)
   const [includeEpilogue, setIncludeEpilogue] = useState(false)
   
+  // 톤앤무드 설정
+  const [bookTone, setBookTone] = useState('professional')  // professional, friendly, academic, casual
+  
+  // PDF 내보내기 페이지 범위
+  const [exportRange, setExportRange] = useState({ start: 1, end: 1 })
+  const [showExportModal, setShowExportModal] = useState(false)
+  
   // 저장 여부 추적
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
@@ -1810,44 +1817,59 @@ ${tocText}
     setCurrentPageIndex(pages.length)
   }
 
+  // 페이지 사이에 삽입 (실제 인덱스 기준)
+  const insertPageAt = (realIdx: number) => {
+    const newPage: Page = {
+      id: `page-${Date.now()}`,
+      blocks: []
+    }
+    updatePages(prev => {
+      const newPages = [...prev]
+      newPages.splice(realIdx, 0, newPage)
+      return newPages
+    })
+    setCurrentPageIndex(realIdx)
+  }
+
   // 페이지 삭제
   const deletePage = (idx: number) => {
-    if (pages.length <= 1) return
+    if (pages.length <= 2) return  // 더미 + 최소 1페이지 유지
     updatePages(prev => prev.filter((_, i) => i !== idx))
-    if (currentPageIndex >= idx && currentPageIndex > 0) {
+    if (currentPageIndex >= idx && currentPageIndex > 1) {
       setCurrentPageIndex(currentPageIndex - 1)
     }
   }
 
-  // PDF 다운로드
-  const downloadPdf = async () => {
-    if (pages.length === 0) return setError('먼저 내용을 생성해주세요')
+  // PDF 내보내기 모달 열기
+  const openExportModal = () => {
+    setExportRange({ start: 1, end: pages.length - 1 })
+    setShowExportModal(true)
+  }
+
+  // PDF 다운로드 (범위 선택)
+  const downloadPdf = async (startPage?: number, endPage?: number) => {
+    if (pages.length <= 1) return setError('먼저 내용을 생성해주세요')
     if (!pagesContainerRef.current) return setError('컨테이너 없음')
     
+    const start = startPage || 1
+    const end = endPage || (pages.length - 1)
+    const rangeSize = end - start + 1
+    
     setIsDownloadingPdf(true)
-    setPdfProgress({ current: 0, total: pages.length, status: '준비 중...' })
+    setPdfProgress({ current: 0, total: rangeSize, status: '준비 중...' })
+    setShowExportModal(false)
     
     try {
-      // 100페이지 초과면 대용량 처리
-      if (pages.length > 100) {
-        await generateLargePdf(
-          pagesContainerRef.current, 
-          bookTitle || 'document', 
-          pageSize,
-          (current, total, status) => {
-            setPdfProgress({ current, total, status })
-          }
-        )
-      } else {
-        await generatePdfFromElement(
-          pagesContainerRef.current, 
-          bookTitle || 'document', 
-          pageSize,
-          (current, total) => {
-            setPdfProgress({ current, total, status: `${current}/${total} 페이지 변환 중...` })
-          }
-        )
-      }
+      await generatePdfFromElement(
+        pagesContainerRef.current, 
+        bookTitle || 'document', 
+        pageSize,
+        (current, total) => {
+          setPdfProgress({ current, total, status: `${current}/${total} 페이지 변환 중...` })
+        },
+        start,
+        end
+      )
       setPdfProgress({ current: 0, total: 0, status: '' })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'PDF 생성 실패')
@@ -2081,7 +2103,7 @@ ${tocText}
           <button onClick={() => setIsEditing(!isEditing)} disabled={pages.length === 0} className={`btn btn-sm ${isEditing ? 'btn-warning' : 'btn-secondary'}`}>
             {isEditing ? '✓ 완료' : '✏️ 편집'}
           </button>
-          <button onClick={downloadPdf} disabled={pages.length === 0 || isDownloadingPdf} className="btn btn-sm btn-success">
+          <button onClick={openExportModal} disabled={pages.length <= 1 || isDownloadingPdf} className="btn btn-sm btn-success">
             {isDownloadingPdf ? `📥 ${pdfProgress.current}/${pdfProgress.total}` : '📥 PDF'}
           </button>
           <button className="btn btn-sm btn-primary" onClick={saveCurrentProject} disabled={pages.length === 0 || isSaving}>
@@ -2105,6 +2127,67 @@ ${tocText}
         <div className="error-bar">
           <span>⚠️ {error}</span>
           <button onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      {/* PDF 내보내기 모달 */}
+      {showExportModal && (
+        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
+          <div className="modal export-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📥 PDF 내보내기</h3>
+              <button className="modal-close" onClick={() => setShowExportModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p className="export-info">총 {pages.length - 1}페이지 중 내보낼 범위를 선택하세요</p>
+              <div className="export-range">
+                <div className="range-input">
+                  <label>시작 페이지</label>
+                  <input 
+                    type="number" 
+                    min={1} 
+                    max={pages.length - 1}
+                    value={exportRange.start}
+                    onChange={(e) => setExportRange(prev => ({ 
+                      ...prev, 
+                      start: Math.max(1, Math.min(Number(e.target.value), prev.end))
+                    }))}
+                  />
+                </div>
+                <span className="range-separator">~</span>
+                <div className="range-input">
+                  <label>끝 페이지</label>
+                  <input 
+                    type="number" 
+                    min={1} 
+                    max={pages.length - 1}
+                    value={exportRange.end}
+                    onChange={(e) => setExportRange(prev => ({ 
+                      ...prev, 
+                      end: Math.max(prev.start, Math.min(Number(e.target.value), pages.length - 1))
+                    }))}
+                  />
+                </div>
+              </div>
+              <p className="export-summary">
+                {exportRange.end - exportRange.start + 1}페이지 내보내기
+              </p>
+              <div className="export-actions">
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => downloadPdf(exportRange.start, exportRange.end)}
+                >
+                  📥 PDF 다운로드
+                </button>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => downloadPdf(1, pages.length - 1)}
+                >
+                  전체 다운로드
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2233,6 +2316,23 @@ ${tocText}
                     <span>에필로그</span>
                   </label>
                 </div>
+              </div>
+              
+              {/* 톤앤무드 설정 */}
+              <div className="section-block">
+                <h3 className="section-label">🎨 톤앤무드</h3>
+                <select 
+                  value={bookTone} 
+                  onChange={(e) => setBookTone(e.target.value)}
+                  className="tone-select"
+                >
+                  <option value="professional">💼 전문적/비즈니스</option>
+                  <option value="friendly">😊 친근한/대화체</option>
+                  <option value="academic">📚 학술적/교육적</option>
+                  <option value="casual">🎉 캐주얼/유머러스</option>
+                  <option value="inspiring">✨ 영감을 주는/동기부여</option>
+                  <option value="storytelling">📖 스토리텔링/서사적</option>
+                </select>
               </div>
               
               <div className="section-block toc-section">
@@ -2762,46 +2862,65 @@ ${tocText}
           <div className="pages-sidebar">
             <div className="sidebar-header">
               <span>📄 페이지 ({pages.length - 1})</span>
-              <button onClick={addNewPage} className="btn-mini" title="새 페이지 추가">+</button>
+              <button onClick={addNewPage} className="btn-mini" title="맨 뒤에 페이지 추가">+</button>
             </div>
             <div className="pages-list">
               {pages.slice(1).map((page, idx) => (
-                <div 
-                  key={page.id} 
-                  className={`page-thumbnail ${(idx + 1) === currentPageIndex ? 'active' : ''}`}
-                  onClick={() => setCurrentPageIndex(idx + 1)}
-                >
-                  <div className="thumbnail-preview" style={{ 
-                    width: 80, 
-                    height: 80 * (previewSize.height / previewSize.width) 
-                  }}>
-                    <div className="thumbnail-content">
-                      {page.blocks.slice(0, 5).map(block => (
-                        <div 
-                          key={block.id} 
-                          className="thumbnail-block"
-                          style={{
-                            left: `${(block.x / previewSize.width) * 100}%`,
-                            top: `${(block.y / previewSize.height) * 100}%`,
-                            width: `${(block.width / previewSize.width) * 100}%`,
-                            height: block.type === 'heading' ? '8%' : '4%',
-                            background: block.style?.background || (block.type === 'heading' ? '#6366f1' : '#ddd'),
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <span className="thumbnail-number">{idx + 1}</span>
-                  </div>
-                  {pages.length > 2 && (
+                <React.Fragment key={page.id}>
+                  {/* 페이지 사이에 삽입 버튼 */}
+                  {idx === 0 && (
                     <button 
-                      className="thumbnail-delete" 
-                      onClick={(e) => { e.stopPropagation(); deletePage(idx + 1) }}
-                      title="페이지 삭제"
+                      className="insert-page-btn"
+                      onClick={() => insertPageAt(1)}
+                      title="맨 앞에 페이지 삽입"
                     >
-                      ✕
+                      <span>+</span>
                     </button>
                   )}
-                </div>
+                  <div 
+                    className={`page-thumbnail ${(idx + 1) === currentPageIndex ? 'active' : ''}`}
+                    onClick={() => setCurrentPageIndex(idx + 1)}
+                  >
+                    <div className="thumbnail-preview" style={{ 
+                      width: 80, 
+                      height: 80 * (previewSize.height / previewSize.width) 
+                    }}>
+                      <div className="thumbnail-content">
+                        {page.blocks.slice(0, 5).map(block => (
+                          <div 
+                            key={block.id} 
+                            className="thumbnail-block"
+                            style={{
+                              left: `${(block.x / previewSize.width) * 100}%`,
+                              top: `${(block.y / previewSize.height) * 100}%`,
+                              width: `${(block.width / previewSize.width) * 100}%`,
+                              height: block.type === 'heading' ? '8%' : '4%',
+                              background: block.style?.background || (block.type === 'heading' ? '#6366f1' : '#ddd'),
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <span className="thumbnail-number">{idx + 1}</span>
+                    </div>
+                    {pages.length > 2 && (
+                      <button 
+                        className="thumbnail-delete" 
+                        onClick={(e) => { e.stopPropagation(); deletePage(idx + 1) }}
+                        title="페이지 삭제"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {/* 각 페이지 뒤에 삽입 버튼 */}
+                  <button 
+                    className="insert-page-btn"
+                    onClick={() => insertPageAt(idx + 2)}
+                    title={`${idx + 1}페이지 뒤에 삽입`}
+                  >
+                    <span>+</span>
+                  </button>
+                </React.Fragment>
               ))}
             </div>
           </div>
