@@ -378,9 +378,14 @@ export default function App() {
       e.preventDefault()
       e.stopPropagation()
       if (clipboardBlocks.length > 0 && pages.length > 0) {
+        isBlockAction.current = true
+        
+        // 먼저 기존 선택 해제
+        setSelectedBlockIds([])
+        
         const newBlocks = clipboardBlocks.map(b => ({
           ...b,
-          id: generateId(),  // 새로운 ID 부여
+          id: generateId(),
         }))
         const newPages = [...pages]
         newPages[currentPageIndex] = {
@@ -389,8 +394,12 @@ export default function App() {
         }
         setPages(newPages)
         saveToHistory(newPages)
-        // 붙여넣은 블록들 선택
-        setSelectedBlockIds(newBlocks.map(b => b.id))
+        
+        // 새 블록만 선택
+        setTimeout(() => {
+          setSelectedBlockIds(newBlocks.map(b => b.id))
+          isBlockAction.current = false
+        }, 0)
       }
     }
     // Delete: 선택한 블록 삭제
@@ -2340,6 +2349,9 @@ ${tocText}
             <button 
               onClick={() => {
                 if (clipboardBlocks.length > 0 && pages.length > 0) {
+                  isBlockAction.current = true
+                  setSelectedBlockIds([])
+                  
                   const newBlocks = clipboardBlocks.map(b => ({
                     ...b,
                     id: generateId(),
@@ -2351,7 +2363,11 @@ ${tocText}
                   }
                   setPages(newPages)
                   saveToHistory(newPages)
-                  setSelectedBlockIds(newBlocks.map(b => b.id))
+                  
+                  setTimeout(() => {
+                    setSelectedBlockIds(newBlocks.map(b => b.id))
+                    isBlockAction.current = false
+                  }, 0)
                 }
               }}
               className="floating-btn"
