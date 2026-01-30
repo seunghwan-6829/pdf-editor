@@ -445,7 +445,7 @@ export default function App() {
       if (result) {
         setCurrentProjectId(projectId)
         await loadProjectsFromSupabase()
-        setError(null)
+    setError(null)
       } else {
         setError('저장 실패')
       }
@@ -886,7 +886,7 @@ ${aiEditInstruction}
       setError('재생성할 페이지가 없습니다')
       return
     }
-
+    
     setIsAiEditing(true)
     setError(null)
 
@@ -1885,24 +1885,24 @@ ${tocText}
 
   // 홈 화면
   if (view === 'home') {
-    return (
-      <div className="app">
+  return (
+    <div className="app">
         <header className="header single-bar">
           <div className="header-left">
             <h1>📚 AI 전자책 제작</h1>
-          </div>
+        </div>
           <div className="header-right">
             {isSupabaseConnected && <span className="status-badge">🟢 DB 연결됨</span>}
             <button className="btn btn-primary" onClick={createNewProject}>+ 새 프로젝트</button>
           </div>
-        </header>
+      </header>
 
         {error && (
           <div className="error-bar">
             <span>⚠️ {error}</span>
             <button onClick={() => setError(null)}>✕</button>
-          </div>
-        )}
+        </div>
+      )}
 
         <div className="home-content">
           {isLoadingProjects ? (
@@ -1916,8 +1916,8 @@ ${tocText}
               <h2>아직 프로젝트가 없습니다</h2>
               <p>새 프로젝트를 만들어 AI와 함께 전자책을 제작해보세요!</p>
               <button className="btn btn-primary btn-large" onClick={createNewProject}>+ 새 프로젝트 시작</button>
-            </div>
-          ) : (
+          </div>
+        ) : (
             <div className="projects-grid">
               {projects.map(project => (
                 <div key={project.id} className="project-card" onClick={() => loadProject(project)}>
@@ -1937,8 +1937,8 @@ ${tocText}
                     🗑️
                   </button>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
           )}
         </div>
       </div>
@@ -2079,13 +2079,13 @@ ${tocText}
                       className="color-input"
                     />
                   </label>
-                </>
-              )}
+          </>
+        )}
               <button onClick={handleDeleteBlock} disabled={selectedBlockIds.length === 0} className="tool-btn danger" title="삭제">🗑️</button>
-            </div>
+      </div>
           )}
           
-        </div>
+    </div>
         
         <div className="header-right">
           {/* 페이지 네비게이션 */}
@@ -2123,7 +2123,7 @@ ${tocText}
         <div className="error-bar">
           <span>⚠️ {error}</span>
           <button onClick={() => setError(null)}>✕</button>
-        </div>
+    </div>
       )}
 
       {/* 저장 확인 모달 */}
@@ -2442,7 +2442,7 @@ ${tocText}
                   <div
                     key={block.id}
                     className={`block ${block.type} ${selectedBlockIds.includes(block.id) ? 'selected' : ''} ${isEditing ? 'editable' : ''} ${block.locked ? 'locked' : ''} ${editingBlockId === block.id ? 'editing-active' : ''}`}
-                    style={{
+            style={{
                       left: block.x,
                       top: block.y,
                       width: block.width,
@@ -2466,7 +2466,7 @@ ${tocText}
                       <textarea
                         ref={textInputRef}
                         className="block-input block-textarea"
-                        value={editingText}
+                value={editingText}
                         onChange={(e) => setEditingText(e.target.value)}
                         onClick={handleTextInputClick}
                         onBlur={handleTextEditComplete}
@@ -2540,10 +2540,10 @@ ${tocText}
                       <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
                     )}
                     {block.locked && <span className="lock-indicator">🔒</span>}
-                  </div>
-                ))}
+          </div>
+        ))}
                 <div className="page-number">{currentPageIndex + 1}</div>
-              </div>
+      </div>
             ) : (
               <div className="empty-preview" style={{ width: previewSize.width, height: previewSize.height }}>
                 <div className="empty-icon">📄</div>

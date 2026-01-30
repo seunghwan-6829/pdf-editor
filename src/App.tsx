@@ -1528,86 +1528,29 @@ ${tocText}
     }
   }
 
-  // 페이지 마우스 다운 (드래그 선택 시작) - 빈 공간 클릭 시에만!
+  // 페이지 마우스 다운 - 드래그 선택 완전 비활성화!
   const handlePageMouseDown = (e: React.MouseEvent) => {
+    // 드래그 선택 기능 완전 OFF - 빈 공간 클릭 시 선택 해제만
     if (!isEditing) return
     
-    // 블록 조작 중이면 무시! (ref로 즉시 체크)
-    if (isBlockAction.current) return
-    
-    // 클릭한 요소가 정확히 book-page인지 확인 (블록이 아닌 빈 공간)
     const target = e.target as HTMLElement
-    if (!target.classList.contains('book-page')) return
-    
-    const rect = pageRef.current!.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    
-    // 드래그 상태 초기화
-    setIsDragging(false)
-    setDragBlockId(null)
-    
-    // 드래그 선택 시작
-    setIsSelecting(true)
-    setSelectionStart({ x, y })
-    setSelectionEnd({ x, y })
-    setSelectedBlockIds([])
+    if (target.classList.contains('book-page')) {
+      // 빈 공간 클릭 시 선택 해제
+      setSelectedBlockIds([])
+      setIsSelecting(false)
+      setIsDragging(false)
+    }
   }
 
   // 드래그 중
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!pageRef.current) return
     
-    // 블록 조작 중이면 드래그 선택 무시
-    if (isBlockAction.current) return
-    
     const rect = pageRef.current.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
     
-    // 드래그 선택 (빈 공간에서 시작된 경우만)
-    if (isSelecting && !isDragging) {
-      setSelectionEnd({ x: mouseX, y: mouseY })
-      
-      // 선택 영역
-      const selMinX = Math.min(selectionStart.x, mouseX)
-      const selMaxX = Math.max(selectionStart.x, mouseX)
-      const selMinY = Math.min(selectionStart.y, mouseY)
-      const selMaxY = Math.max(selectionStart.y, mouseY)
-      
-      // 선택 영역이 충분히 큰 경우에만 선택 (최소 20px - 더 엄격하게)
-      if (Math.abs(selMaxX - selMinX) < 20 && Math.abs(selMaxY - selMinY) < 20) {
-        return
-      }
-      
-      // 선택 영역 내 블록 찾기
-      const selected = currentPage?.blocks
-        .filter(b => {
-          if (b.locked) return false
-          // 블록 높이 추정 (타입별)
-          let blockHeight = 22
-          if (b.type === 'heading') {
-            blockHeight = b.style?.fontSize === 26 ? 60 : b.style?.fontSize === 17 ? 42 : 30
-          } else if (b.type === 'quote') {
-            blockHeight = 32
-          } else if (b.type === 'list') {
-            blockHeight = 16
-          } else if (b.type === 'shape') {
-            blockHeight = b.height || 70
-          }
-          
-          // 블록 중심점이 선택 영역 안에 있는지 확인
-          const blockCenterX = b.x + b.width / 2
-          const blockCenterY = b.y + blockHeight / 2
-          
-          return blockCenterX >= selMinX && blockCenterX <= selMaxX && 
-                 blockCenterY >= selMinY && blockCenterY <= selMaxY
-        })
-        .map(b => b.id) || []
-      
-      setSelectedBlockIds(selected)
-      return
-    }
+    // 드래그 선택 기능 완전 제거됨 - 아래 블록 드래그만 처리
     
     // 블록 드래그 (선택된 모든 블록 함께 이동)
     if (isDragging && selectedBlockIds.length > 0 && dragBlockId) {
@@ -1956,8 +1899,8 @@ ${tocText}
     ? currentPage?.blocks.find(b => b.id === selectedBlockIds[0]) 
     : null
 
-  // 선택 박스 스타일
-  const selectionBoxStyle = isSelecting ? {
+  // 선택 박스 스타일 - 드래그 선택 비활성화됨
+  const selectionBoxStyle = false && isSelecting ? {
     left: Math.min(selectionStart.x, selectionEnd.x),
     top: Math.min(selectionStart.y, selectionEnd.y),
     width: Math.abs(selectionEnd.x - selectionStart.x),
