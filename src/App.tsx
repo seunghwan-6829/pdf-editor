@@ -168,7 +168,6 @@ export default function App() {
   const [tocItems, setTocItems] = useState<{id: string; title: string; subItems: {id: string; title: string}[]}[]>([
     { id: 'ch-1', title: '', subItems: [{ id: 'sub-1-1', title: '' }] }
   ])
-  const [pageCount, setPageCount] = useState('5')
   const [isLoading, setIsLoading] = useState(false)
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, chapterName: '' })
   const [error, setError] = useState<string | null>(null)
@@ -982,7 +981,6 @@ ${currentContent.slice(0, 500)}...
 
 【책 정보】
 제목: ${bookTitle}
-분량: 약 ${pageCount}페이지 (각 페이지에 충분한 내용)
 주제: ${prompt}
 
 ${tocText ? `【목차 구조 - 이 순서대로 작성】
@@ -1614,13 +1612,8 @@ ${tocText}
             if (block.id !== selectedBlockIds[0]) return block
             
             let newWidth = block.width
-            let newHeight = block.type === 'shape' ? block.width * 0.7 : undefined
             
             if (resizeDirection === 'corner' || resizeDirection === 'right') {
-              newWidth = Math.max(50, resizeStart.width + deltaX)
-            }
-            if (resizeDirection === 'corner' && block.type === 'shape') {
-              // 비율 유지하며 크기 조절
               newWidth = Math.max(50, resizeStart.width + deltaX)
             }
             if (resizeDirection === 'bottom' && block.type === 'shape') {

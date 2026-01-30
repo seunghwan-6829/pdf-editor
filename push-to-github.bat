@@ -1,43 +1,21 @@
 @echo off
 chcp 65001 >nul
-cd /d "%~dp0"
+cd /d "C:\Users\user\pdf-editor"
 
-set "GIT="
-where git >nul 2>&1 && set GIT=git
-if not defined GIT if exist "C:\Program Files\Git\bin\git.exe" set "GIT=C:\Program Files\Git\bin\git.exe"
-if not defined GIT if exist "C:\Program Files (x86)\Git\bin\git.exe" set "GIT=C:\Program Files (x86)\Git\bin\git.exe"
+echo [0] Git lock 파일 정리
+if exist ".git\index.lock" del /f ".git\index.lock"
 
-if not defined GIT (
-    echo [오류] Git을 찾을 수 없습니다.
-    pause
-    exit /b 1
-)
+echo [1] git add
+git add -A
 
-echo Git: %GIT%
-echo.
+echo [2] git commit
+git commit -m "fix: 버그 수정 및 기능 개선"
 
-echo [1] 파일 타임스탬프 업데이트
-copy /b src\App.tsx +,, >nul 2>&1
-copy /b src\App.css +,, >nul 2>&1
-copy /b src\pdf\textGrouping.ts +,, >nul 2>&1
+echo [3] git pull
+git pull --rebase origin main
 
-echo [2] git add .
-"%GIT%" add -A
-
-echo [3] Git 사용자 설정
-"%GIT%" config user.email "seunghwan-6829@users.noreply.github.com"
-"%GIT%" config user.name "seunghwan-6829"
-
-echo [4] git commit
-"%GIT%" commit -m "feat: AI 수정 기능 + 다양한 레이아웃 요소"
-echo.
-
-echo [5] git pull (동기화)
-"%GIT%" pull --rebase origin main
-echo.
-
-echo [6] git push
-"%GIT%" push origin main
+echo [4] git push
+git push origin main
 
 echo.
 echo 완료! 1-2분 후 Vercel 자동 배포됩니다.
