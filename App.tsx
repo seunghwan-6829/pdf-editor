@@ -191,14 +191,17 @@ export default function App() {
     setHistoryIndex(prev => Math.min(prev + 1, 49))
   }, [historyIndex])
 
+  // 미리보기 영역 포커스 상태
+  const [isPreviewFocused, setIsPreviewFocused] = useState(false)
+
   // Ctrl+Z / Ctrl+Y (미리보기 영역 포커스 시에만)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 미리보기 영역에 포커스가 있을 때만 동작
-      if (!previewRef.current?.contains(document.activeElement) && 
-          document.activeElement?.tagName !== 'BODY') {
-        return
-      }
+      if (!isPreviewFocused) return
+      
+      // 텍스트 입력 중이면 무시
+      if (editingBlockId) return
       
       if (e.ctrlKey && e.key === 'z') {
         e.preventDefault()
@@ -219,7 +222,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [history, historyIndex])
+  }, [history, historyIndex, isPreviewFocused, editingBlockId])
 
   // 텍스트 입력 시 전체선택
   useEffect(() => {
@@ -1059,7 +1062,18 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
           </button>
         </div>
 
-        <div className="preview-section" ref={previewRef} tabIndex={-1}>
+        <div 
+          className={`preview-section ${isPreviewFocused ? 'focused' : ''}`} 
+          ref={previewRef} 
+          tabIndex={0}
+          onFocus={() => setIsPreviewFocused(true)}
+          onBlur={(e) => {
+            // 내부 요소로 포커스 이동 시 blur 무시
+            if (previewRef.current?.contains(e.relatedTarget as Node)) return
+            setIsPreviewFocused(false)
+          }}
+          onClick={() => previewRef.current?.focus()}
+        >
           {/* 가이드라인 컨트롤 */}
           {guidelines.length > 0 && isEditing && (
             <div className="guideline-controls">
