@@ -350,7 +350,6 @@ export default function App() {
     setHistory([])
     setHistoryIndex(-1)
 
-    const sizeInfo = PAGE_SIZES[pageSize]
     let userPrompt = prompt
 
     if (mode === 'ebook' && bookTitle) {
