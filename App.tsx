@@ -156,9 +156,7 @@ export default function App() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [isLoadingProjects, setIsLoadingProjects] = useState(false)
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => 
-    (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
-  )
+  const theme = 'dark' // 다크모드 고정
   
   const [mode, setMode] = useState<Mode>('ebook')
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('claude_api_key') || '')
@@ -224,11 +222,10 @@ export default function App() {
   const textInputRef = useRef<HTMLTextAreaElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
 
-  // 테마 적용
+  // 테마 적용 (다크모드 고정)
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('theme', theme)
-  }, [theme])
+    document.documentElement.setAttribute('data-theme', 'dark')
+  }, [])
 
   // 목차 관리 함수들
   const addChapter = () => {
