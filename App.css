@@ -765,16 +765,18 @@ body {
 
 .block.quote {
   border-radius: 6px;
+  line-height: 1.6;
 }
 
 .quote-content {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
 }
 
 .block.list {
-  font-size: 10px;
+  font-size: 12px;
   color: #333;
+  line-height: 1.6;
 }
 
 .list-content {
@@ -784,7 +786,7 @@ body {
 }
 
 .block.text {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
   color: #2d3748;
   letter-spacing: 0.01em;

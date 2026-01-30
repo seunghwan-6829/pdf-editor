@@ -463,17 +463,18 @@ export default function App() {
 - 5-8개 이상의 문단으로 깊이 있게 작성
 - 각 문단은 최소 4-5문장으로 구성
 - 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
-- > 콜아웃으로 핵심 포인트, 팁, 중요사항, 예시, 통계 등 표시
+- > 콜아웃을 자주 활용 (3-5개): 💡팁, ⚠️중요, 📊데이터, 📌예시, 📝참고 등
 - **굵게**로 키워드 강조
-- 적절한 위치에 [IMAGE: 설명] 형태로 이미지 위치 표시 (2-3개)
-- 목록(-)으로 세부 정보 정리
-- 문단 사이 빈 줄로 구분
+- [IMAGE: 설명] 형태로 이미지 위치 4-6개 표시 (관련 차트, 다이어그램, 예시 이미지 등)
+- 목록(-)으로 세부 정보를 정리 (각 섹션마다 1개 이상)
+- 문단 사이 빈 줄로 구분하여 가독성 확보
+- 중요한 인용구나 핵심 문장은 > 콜아웃으로 강조
 
 【금지】코드블록, 표, 구분선, 짧은 요약
 
 주제: ${prompt}
 
-이 세부목차 "${item.subTitle}"에 대해 전문가 수준으로 깊이 있게 작성해주세요. 독자가 실제로 적용할 수 있는 구체적인 내용으로 채워주세요.`
+이 세부목차 "${item.subTitle}"에 대해 전문가 수준으로 깊이 있게 작성해주세요. 다양한 시각적 요소(콜아웃, 이미지 영역, 목록)를 활용해 가독성을 높여주세요.`
         } else {
           // 세부목차 없는 챕터 전체 생성
           sectionPrompt = `${i === 0 ? `# ${bookTitle}\n\n` : ''}## ${item.chapterIdx + 1}장: ${item.chapterTitle}
@@ -482,17 +483,18 @@ export default function App() {
 - 8-12개 이상의 문단으로 깊이 있게 작성
 - 각 문단은 최소 4-5문장으로 구성
 - 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
-- > 콜아웃으로 핵심 포인트, 팁, 중요사항, 예시, 통계 등 표시
+- > 콜아웃을 자주 활용 (5-8개): 💡팁, ⚠️중요, 📊데이터, 📌예시, 📝참고 등
 - **굵게**로 키워드 강조
-- 적절한 위치에 [IMAGE: 설명] 형태로 이미지 위치 표시 (3-5개)
-- 목록(-)으로 세부 정보 정리
-- 문단 사이 빈 줄로 구분
+- [IMAGE: 설명] 형태로 이미지 위치 6-10개 표시 (관련 차트, 다이어그램, 예시 이미지 등)
+- 목록(-)으로 세부 정보를 정리 (각 섹션마다 1개 이상)
+- 문단 사이 빈 줄로 구분하여 가독성 확보
+- 중요한 인용구나 핵심 문장은 > 콜아웃으로 강조
 
 【금지】코드블록, 표, 구분선, 짧은 요약
 
 주제: ${prompt}
 
-이 챕터 "${item.chapterTitle}"에 대해 전문가 수준으로 깊이 있게 작성해주세요.`
+이 챕터 "${item.chapterTitle}"에 대해 전문가 수준으로 깊이 있게 작성해주세요. 다양한 시각적 요소(콜아웃, 이미지 영역, 목록)를 활용해 가독성을 높여주세요.`
         }
 
         // 스트리밍 호출
@@ -623,17 +625,23 @@ ${tocText}
 - **굵게** 키워드 강조
 - 목록 - 또는 1. 2. 3.
 
+【이미지 위치 표시】
+- [IMAGE: 설명] 형태로 이미지 들어갈 위치 표시
+- 챕터당 3-5개의 이미지 영역 배치 (차트, 다이어그램, 예시 이미지 등)
+
 【절대 금지】
 - 코드 블록, 구분선, 표 사용 금지
 - 한 줄짜리 짧은 문장만으로 구성 금지
 - "페이지" 언급 금지
 
-【분량 기준】
-- 각 소제목(###) 아래 최소 3-5개 문단
-- 각 문단은 2-4문장으로 구성
-- 콜아웃은 챕터당 2-3개 적절히 배치
+【분량 및 레이아웃 기준】
+- 각 소제목(###) 아래 최소 4-6개 문단
+- 각 문단은 3-5문장으로 구성
+- 콜아웃(>)은 소제목당 2-3개 적절히 배치
+- 목록(-)은 각 섹션당 1개 이상 포함
+- 문단 사이는 빈 줄로 구분하여 가독성 확보
 
-깊이 있고 가치 있는 콘텐츠를 작성해주세요.`
+다양한 시각적 요소(콜아웃, 이미지 영역, 목록)를 활용해 가독성 높은 콘텐츠를 작성해주세요.`
     }
 
     try {
@@ -722,26 +730,26 @@ ${tocText}
       if (!trimmed) {
         if (!lastWasEmpty) {
           // 문단 끝이면 더 큰 간격
-          y += (lastBlockType === 'text') ? 12 : 8
+          y += (lastBlockType === 'text') ? 16 : 12
           lastWasEmpty = true
         }
         continue
       }
       lastWasEmpty = false
       
-      let blockHeight = 18
-      let marginTop = 4
+      let blockHeight = 22
+      let marginTop = 6
       let block: Block | null = null
       
       if (trimmed.startsWith('# ')) {
         // 책 제목: 프리미엄 네이비 스타일
-        blockHeight = 55
-        marginTop = lastBlockType ? 12 : 0
+        blockHeight = 66
+        marginTop = lastBlockType ? 16 : 0
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(2),
           x, y: y + marginTop, width: contentWidth,
           style: { 
-            fontSize: 22, fontWeight: 'bold', textAlign: 'center', 
+            fontSize: 26, fontWeight: 'bold', textAlign: 'center', 
             background: 'linear-gradient(135deg, #1e3a5f, #34495e)', 
             color: '#fff', 
             padding: '16px 20px',
@@ -751,27 +759,27 @@ ${tocText}
         lastBlockType = 'h1'
       } else if (trimmed.startsWith('## ')) {
         // 챕터 제목: 다양한 레이아웃 스타일
-        blockHeight = 34
-        marginTop = lastBlockType === 'h1' ? 10 : 14
+        blockHeight = 42
+        marginTop = lastBlockType === 'h1' ? 14 : 18
         const style = CHAPTER_STYLES[chapterIdx % CHAPTER_STYLES.length]
         chapterIdx++
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(3),
           x, y: y + marginTop, width: contentWidth,
-          style: { fontSize: 14, fontWeight: 'bold', ...style, padding: '10px 14px' }
+          style: { fontSize: 17, fontWeight: 'bold', ...style, padding: '12px 16px' }
         }
         lastBlockType = 'h2'
       } else if (trimmed.startsWith('### ')) {
         // 소제목: 다양한 색상
-        blockHeight = 24
-        marginTop = 10
+        blockHeight = 30
+        marginTop = 14
         const subStyle = SUBHEADING_STYLES[subheadingIdx % SUBHEADING_STYLES.length]
         subheadingIdx++
         block = {
           id: generateId(), type: 'heading', content: trimmed.slice(4),
           x, y: y + marginTop, width: contentWidth,
           style: { 
-            fontSize: 11, fontWeight: '600', 
+            fontSize: 13, fontWeight: '600', 
             ...subStyle,
             background: 'transparent',
             padding: '4px 10px', 
@@ -795,9 +803,9 @@ ${tocText}
         }
         
         const style = CALLOUT_STYLES[calloutType]
-        const lines = Math.ceil(content.length / 45)
-        blockHeight = 28 + (lines > 1 ? (lines - 1) * 14 : 0)
-        marginTop = 8
+        const lines = Math.ceil(content.length / 40)
+        blockHeight = 34 + (lines > 1 ? (lines - 1) * 16 : 0)
+        marginTop = 12
         
         block = {
           id: generateId(), type: 'quote', content: `${style.icon} ${content}`,
@@ -812,8 +820,8 @@ ${tocText}
         }
         lastBlockType = 'quote'
       } else if (trimmed.startsWith('- ') || /^\d+\./.test(trimmed)) {
-        blockHeight = 16
-        marginTop = lastBlockType === 'list' ? 2 : 4
+        blockHeight = 20
+        marginTop = lastBlockType === 'list' ? 4 : 8
         block = {
           id: generateId(), type: 'list', content: trimmed,
           x, y: y + marginTop, width: contentWidth,
@@ -822,8 +830,8 @@ ${tocText}
       } else if (trimmed.startsWith('[IMAGE:') || trimmed.startsWith('[이미지:')) {
         // 이미지 placeholder
         const desc = trimmed.replace(/\[IMAGE:|이미지:|\]/gi, '').trim()
-        blockHeight = 80
-        marginTop = 10
+        blockHeight = 100
+        marginTop = 14
         block = {
           id: generateId(), type: 'image', content: `📷 이미지 영역\n${desc}`,
           x: x + 20, y: y + marginTop, width: contentWidth - 40,
@@ -845,8 +853,8 @@ ${tocText}
         if (cells.length === 0) continue
         
         const content = cells.map(c => c.trim()).join(' • ')
-        blockHeight = 16
-        marginTop = lastBlockType === 'table' ? 2 : 6
+        blockHeight = 20
+        marginTop = lastBlockType === 'table' ? 4 : 10
         block = {
           id: generateId(), type: 'list', content: `📌 ${content}`,
           x, y: y + marginTop, width: contentWidth,
@@ -854,8 +862,8 @@ ${tocText}
         }
         lastBlockType = 'table'
       } else {
-        blockHeight = 16 + Math.floor(trimmed.length / 50) * 14
-        marginTop = lastBlockType === 'text' ? 4 : 6
+        blockHeight = 20 + Math.floor(trimmed.length / 45) * 16
+        marginTop = lastBlockType === 'text' ? 6 : 10
         block = {
           id: generateId(), type: 'text', content: trimmed,
           x, y: y + marginTop, width: contentWidth,
@@ -1043,9 +1051,9 @@ ${tocText}
         .filter(b => {
           if (b.locked) return false
           // 블록 높이 추정 (타입별)
-          let blockHeight = 18
+          let blockHeight = 22
           if (b.type === 'heading') {
-            blockHeight = b.style?.fontSize === 22 ? 50 : b.style?.fontSize === 14 ? 34 : 24
+            blockHeight = b.style?.fontSize === 26 ? 60 : b.style?.fontSize === 17 ? 42 : 30
           } else if (b.type === 'quote') {
             blockHeight = 32
           } else if (b.type === 'list') {
