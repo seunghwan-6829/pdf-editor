@@ -119,6 +119,11 @@ export default function App() {
   const [prompt, setPrompt] = useState('')
   const [bookTitle, setBookTitle] = useState('')
   const [chapters, setChapters] = useState('')
+  
+  // 목차 구조
+  const [tocItems, setTocItems] = useState<{id: string; title: string; subItems: {id: string; title: string}[]}[]>([
+    { id: 'ch-1', title: '', subItems: [{ id: 'sub-1-1', title: '' }] }
+  ])
   const [pageCount, setPageCount] = useState('5')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -163,6 +168,58 @@ export default function App() {
   }, [theme])
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark')
+
+  // 목차 관리 함수들
+  const addChapter = () => {
+    const newId = `ch-${Date.now()}`
+    setTocItems(prev => [...prev, { id: newId, title: '', subItems: [{ id: `sub-${newId}-1`, title: '' }] }])
+  }
+
+  const removeChapter = (chapterId: string) => {
+    if (tocItems.length <= 1) return
+    setTocItems(prev => prev.filter(ch => ch.id !== chapterId))
+  }
+
+  const updateChapterTitle = (chapterId: string, title: string) => {
+    setTocItems(prev => prev.map(ch => ch.id === chapterId ? { ...ch, title } : ch))
+  }
+
+  const addSubItem = (chapterId: string) => {
+    setTocItems(prev => prev.map(ch => {
+      if (ch.id !== chapterId) return ch
+      const newSubId = `sub-${chapterId}-${Date.now()}`
+      return { ...ch, subItems: [...ch.subItems, { id: newSubId, title: '' }] }
+    }))
+  }
+
+  const removeSubItem = (chapterId: string, subId: string) => {
+    setTocItems(prev => prev.map(ch => {
+      if (ch.id !== chapterId) return ch
+      if (ch.subItems.length <= 1) return ch
+      return { ...ch, subItems: ch.subItems.filter(s => s.id !== subId) }
+    }))
+  }
+
+  const updateSubItemTitle = (chapterId: string, subId: string, title: string) => {
+    setTocItems(prev => prev.map(ch => {
+      if (ch.id !== chapterId) return ch
+      return { ...ch, subItems: ch.subItems.map(s => s.id === subId ? { ...s, title } : s) }
+    }))
+  }
+
+  // 목차를 텍스트로 변환
+  const getTocText = () => {
+    return tocItems
+      .filter(ch => ch.title.trim())
+      .map((ch, i) => {
+        const subs = ch.subItems
+          .filter(s => s.title.trim())
+          .map((s, j) => `  ${i + 1}.${j + 1} ${s.title}`)
+          .join('\n')
+        return `${i + 1}. ${ch.title}${subs ? '\n' + subs : ''}`
+      })
+      .join('\n')
+  }
 
   // Supabase 자동 초기화
   useEffect(() => {
@@ -355,13 +412,19 @@ export default function App() {
     let userPrompt = prompt
 
     if (mode === 'ebook' && bookTitle) {
+      const tocText = getTocText()
+      
       userPrompt = `프리미엄 전자책을 작성해주세요. 베스트셀러 수준의 퀄리티와 깊이로 작성합니다.
 
 【책 정보】
 제목: ${bookTitle}
-${chapters ? `챕터 구성: ${chapters}` : ''}
 분량: 약 ${pageCount}페이지 (각 페이지에 충분한 내용)
 주제: ${prompt}
+
+${tocText ? `【목차 구조 - 이 순서대로 작성】
+${tocText}
+
+위 목차의 각 항목을 순서대로 상세하게 작성해주세요.` : (chapters ? `챕터 구성: ${chapters}` : '')}
 
 【핵심 작성 원칙 - 매우 중요】
 1. **풍부한 설명**: 모든 개념은 3-4문장 이상으로 상세히 설명
@@ -1197,14 +1260,57 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
           </div>
 
           {mode === 'ebook' && (
-            <div className="section-block">
-              <h3>📖 책 정보</h3>
-              <input type="text" placeholder="책 제목" value={bookTitle} onChange={(e) => setBookTitle(e.target.value)} className="input-compact" />
-              <div className="form-row compact">
-                <input type="text" placeholder="챕터 구성" value={chapters} onChange={(e) => setChapters(e.target.value)} className="input-compact" />
-                <input type="number" min="1" max="50" value={pageCount} onChange={(e) => setPageCount(e.target.value)} className="input-compact small" placeholder="페이지" />
+            <>
+              <div className="section-block">
+                <h3>📖 책 정보</h3>
+                <input type="text" placeholder="책 제목" value={bookTitle} onChange={(e) => setBookTitle(e.target.value)} className="input-compact" />
+                <input type="number" min="1" max="50" value={pageCount} onChange={(e) => setPageCount(e.target.value)} className="input-compact" placeholder="페이지 수" style={{marginTop: '0.5rem'}} />
               </div>
-            </div>
+              
+              <div className="section-block toc-section">
+                <div className="toc-header">
+                  <h3>📑 목차</h3>
+                  <button onClick={addChapter} className="btn-mini-add" title="챕터 추가">+</button>
+                </div>
+                <div className="toc-list">
+                  {tocItems.map((chapter, chIdx) => (
+                    <div key={chapter.id} className="toc-chapter">
+                      <div className="toc-chapter-row">
+                        <span className="toc-num">{chIdx + 1}.</span>
+                        <input 
+                          type="text" 
+                          placeholder={`챕터 ${chIdx + 1} 제목`}
+                          value={chapter.title}
+                          onChange={(e) => updateChapterTitle(chapter.id, e.target.value)}
+                          className="toc-input"
+                        />
+                        {tocItems.length > 1 && (
+                          <button onClick={() => removeChapter(chapter.id)} className="btn-mini-del">✕</button>
+                        )}
+                      </div>
+                      <div className="toc-subitems">
+                        {chapter.subItems.map((sub, subIdx) => (
+                          <div key={sub.id} className="toc-subitem-row">
+                            <span className="toc-subnum">{chIdx + 1}.{subIdx + 1}</span>
+                            <input 
+                              type="text" 
+                              placeholder={`세부 ${subIdx + 1}`}
+                              value={sub.title}
+                              onChange={(e) => updateSubItemTitle(chapter.id, sub.id, e.target.value)}
+                              className="toc-input-sub"
+                            />
+                            {chapter.subItems.length > 1 && (
+                              <button onClick={() => removeSubItem(chapter.id, sub.id)} className="btn-mini-del">✕</button>
+                            )}
+                          </div>
+                        ))}
+                        <button onClick={() => addSubItem(chapter.id)} className="btn-add-sub">+ 세부목차</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
           <div className="section-block flex-grow">

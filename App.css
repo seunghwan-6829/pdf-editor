@@ -422,6 +422,139 @@ body {
   flex: none;
 }
 
+/* 목차 섹션 */
+.toc-section {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.toc-header h3 {
+  margin: 0;
+}
+
+.btn-mini-add {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-mini-add:hover {
+  background: var(--accent-hover);
+}
+
+.btn-mini-del {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: var(--danger);
+  color: white;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.btn-mini-del:hover {
+  opacity: 1;
+}
+
+.toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.toc-chapter {
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.toc-chapter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.toc-num {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 20px;
+}
+
+.toc-input {
+  flex: 1;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.toc-subitems {
+  margin-top: 0.4rem;
+  margin-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.toc-subitem-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.toc-subnum {
+  font-size: 0.7rem;
+  color: var(--muted);
+  min-width: 28px;
+}
+
+.toc-input-sub {
+  flex: 1;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.75rem;
+}
+
+.btn-add-sub {
+  padding: 0.2rem 0.4rem;
+  border: 1px dashed var(--border);
+  background: none;
+  color: var(--muted);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  margin-top: 0.25rem;
+}
+
+.btn-add-sub:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* 페이지 사이즈 선택 */
 .page-size-selector.compact {
   display: flex;
