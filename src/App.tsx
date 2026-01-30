@@ -121,6 +121,7 @@ export default function App() {
   const [isEditing, setIsEditing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [dragBlockId, setDragBlockId] = useState<string | null>(null)  // 드래그 시작한 블록
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const [editingText, setEditingText] = useState('')
   
@@ -660,13 +661,27 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
     if (block?.locked) return
     
     e.preventDefault()
+    e.stopPropagation()
     
+    // 선택되지 않은 블록 클릭 시 해당 블록만 선택
     if (!selectedBlockIds.includes(blockId)) {
       setSelectedBlockIds([blockId])
     }
     
+    // 드래그 시작한 블록 기록
+    setDragBlockId(blockId)
     setIsDragging(true)
-    setDragOffset({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY })
+    
+    // 클릭한 블록 기준 오프셋
+    if (block) {
+      const rect = pageRef.current?.getBoundingClientRect()
+      if (rect) {
+        setDragOffset({ 
+          x: e.clientX - rect.left - block.x, 
+          y: e.clientY - rect.top - block.y 
+        })
+      }
+    }
   }
 
   // 페이지 마우스 다운 (드래그 선택 시작)
@@ -700,19 +715,31 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
       const selMinY = Math.min(selectionStart.y, mouseY)
       const selMaxY = Math.max(selectionStart.y, mouseY)
       
-      // 선택 영역 내 블록 찾기 (블록이 선택 영역 안에 완전히 포함되어야 함)
+      // 선택 영역이 충분히 큰 경우에만 선택 (최소 10px)
+      if (Math.abs(selMaxX - selMinX) < 10 && Math.abs(selMaxY - selMinY) < 10) {
+        return
+      }
+      
+      // 선택 영역 내 블록 찾기
       const selected = currentPage?.blocks
         .filter(b => {
           if (b.locked) return false
-          // 블록 높이 추정
-          const blockHeight = b.type === 'heading' ? 40 : b.type === 'quote' ? 30 : 20
-          // 블록이 선택 영역 안에 있는지 확인
-          const blockMinX = b.x
-          const blockMaxX = b.x + b.width
-          const blockMinY = b.y
-          const blockMaxY = b.y + blockHeight
-          // 교차 확인 (일부라도 겹치면 선택)
-          return blockMinX < selMaxX && blockMaxX > selMinX && blockMinY < selMaxY && blockMaxY > selMinY
+          // 블록 높이 추정 (타입별)
+          let blockHeight = 18
+          if (b.type === 'heading') {
+            blockHeight = b.style?.fontSize === 22 ? 50 : b.style?.fontSize === 14 ? 34 : 24
+          } else if (b.type === 'quote') {
+            blockHeight = 32
+          } else if (b.type === 'list') {
+            blockHeight = 16
+          }
+          
+          // 블록 중심점이 선택 영역 안에 있는지 확인
+          const blockCenterX = b.x + b.width / 2
+          const blockCenterY = b.y + blockHeight / 2
+          
+          return blockCenterX >= selMinX && blockCenterX <= selMaxX && 
+                 blockCenterY >= selMinY && blockCenterY <= selMaxY
         })
         .map(b => b.id) || []
       
@@ -720,19 +747,23 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
       return
     }
     
-    // 블록 드래그
-    if (isDragging && selectedBlockIds.length > 0) {
-      const primaryBlock = currentPage?.blocks.find(b => b.id === selectedBlockIds[0])
-      if (!primaryBlock) return
+    // 블록 드래그 (선택된 모든 블록 함께 이동)
+    if (isDragging && selectedBlockIds.length > 0 && dragBlockId) {
+      const draggedBlock = currentPage?.blocks.find(b => b.id === dragBlockId)
+      if (!draggedBlock) return
       
+      // 드래그 시작한 블록의 새 위치 계산
       let newX = mouseX - dragOffset.x
       let newY = mouseY - dragOffset.y
       
       // 스냅
-      const snapped = getSnappedPosition(newX, newY, primaryBlock.width)
-      const deltaX = snapped.x - primaryBlock.x
-      const deltaY = snapped.y - primaryBlock.y
+      const snapped = getSnappedPosition(newX, newY, draggedBlock.width)
       
+      // 이동량 계산
+      const deltaX = snapped.x - draggedBlock.x
+      const deltaY = snapped.y - draggedBlock.y
+      
+      // 모든 선택된 블록에 같은 이동량 적용
       setPages(prev => prev.map((page, idx) => {
         if (idx !== currentPageIndex) return page
         return {
@@ -772,6 +803,7 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
     setIsDragging(false)
     setIsResizing(false)
     setIsSelecting(false)
+    setDragBlockId(null)
   }
 
   // 리사이즈 시작
