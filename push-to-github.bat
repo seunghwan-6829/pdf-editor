@@ -29,10 +29,14 @@ echo [3] Git 사용자 설정
 "%GIT%" config user.name "seunghwan-6829"
 
 echo [4] git commit
-"%GIT%" commit -m "refactor: 인라인 편집 + 텍스트 이동 기능"
+"%GIT%" commit -m "feat: AI 수정 기능 + 다양한 레이아웃 요소"
 echo.
 
-echo [5] git push
+echo [5] git pull (동기화)
+"%GIT%" pull --rebase origin main
+echo.
+
+echo [6] git push
 "%GIT%" push origin main
 
 echo.
