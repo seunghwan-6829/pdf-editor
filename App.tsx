@@ -676,14 +676,26 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
     if (isSelecting) {
       setSelectionEnd({ x: mouseX, y: mouseY })
       
-      // 선택 영역 내 블록 찾기
-      const minX = Math.min(selectionStart.x, mouseX)
-      const maxX = Math.max(selectionStart.x, mouseX)
-      const minY = Math.min(selectionStart.y, mouseY)
-      const maxY = Math.max(selectionStart.y, mouseY)
+      // 선택 영역
+      const selMinX = Math.min(selectionStart.x, mouseX)
+      const selMaxX = Math.max(selectionStart.x, mouseX)
+      const selMinY = Math.min(selectionStart.y, mouseY)
+      const selMaxY = Math.max(selectionStart.y, mouseY)
       
+      // 선택 영역 내 블록 찾기 (블록이 선택 영역 안에 완전히 포함되어야 함)
       const selected = currentPage?.blocks
-        .filter(b => !b.locked && b.x < maxX && b.x + b.width > minX && b.y < maxY && b.y + 30 > minY)
+        .filter(b => {
+          if (b.locked) return false
+          // 블록 높이 추정
+          const blockHeight = b.type === 'heading' ? 40 : b.type === 'quote' ? 30 : 20
+          // 블록이 선택 영역 안에 있는지 확인
+          const blockMinX = b.x
+          const blockMaxX = b.x + b.width
+          const blockMinY = b.y
+          const blockMaxY = b.y + blockHeight
+          // 교차 확인 (일부라도 겹치면 선택)
+          return blockMinX < selMaxX && blockMaxX > selMinX && blockMinY < selMaxY && blockMaxY > selMinY
+        })
         .map(b => b.id) || []
       
       setSelectedBlockIds(selected)
@@ -856,6 +868,25 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
   // 가이드라인 삭제
   const deleteGuideline = (id: string) => {
     setGuidelines(prev => prev.filter(g => g.id !== id))
+  }
+
+  // 새 페이지 추가
+  const addNewPage = () => {
+    const newPage: Page = {
+      id: `page-${pages.length}`,
+      blocks: []
+    }
+    updatePages(prev => [...prev, newPage])
+    setCurrentPageIndex(pages.length)
+  }
+
+  // 페이지 삭제
+  const deletePage = (idx: number) => {
+    if (pages.length <= 1) return
+    updatePages(prev => prev.filter((_, i) => i !== idx))
+    if (currentPageIndex >= idx && currentPageIndex > 0) {
+      setCurrentPageIndex(currentPageIndex - 1)
+    }
   }
 
   // PDF 다운로드
@@ -1174,6 +1205,58 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
               </div>
             )}
           </div>
+
+        </div>
+
+        {/* 페이지 목록 사이드바 */}
+        {pages.length > 0 && (
+          <div className="pages-sidebar">
+            <div className="sidebar-header">
+              <span>페이지 ({pages.length})</span>
+              <button onClick={addNewPage} className="btn-mini" title="새 페이지 추가">+</button>
+            </div>
+            <div className="pages-list">
+              {pages.map((page, idx) => (
+                <div 
+                  key={page.id} 
+                  className={`page-thumbnail ${idx === currentPageIndex ? 'active' : ''}`}
+                  onClick={() => setCurrentPageIndex(idx)}
+                >
+                  <div className="thumbnail-preview" style={{ 
+                    width: 80, 
+                    height: 80 * (previewSize.height / previewSize.width) 
+                  }}>
+                    <div className="thumbnail-content">
+                      {page.blocks.slice(0, 5).map(block => (
+                        <div 
+                          key={block.id} 
+                          className="thumbnail-block"
+                          style={{
+                            left: `${(block.x / previewSize.width) * 100}%`,
+                            top: `${(block.y / previewSize.height) * 100}%`,
+                            width: `${(block.width / previewSize.width) * 100}%`,
+                            height: block.type === 'heading' ? '8%' : '4%',
+                            background: block.style?.background || (block.type === 'heading' ? '#6366f1' : '#ddd'),
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span className="thumbnail-number">{idx + 1}</span>
+                  </div>
+                  {pages.length > 1 && (
+                    <button 
+                      className="thumbnail-delete" 
+                      onClick={(e) => { e.stopPropagation(); deletePage(idx) }}
+                      title="페이지 삭제"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
           <div ref={pagesContainerRef} id="pdf-pages-container" className="pdf-hidden">
             {pages.map((page, pageIdx) => (
