@@ -94,7 +94,9 @@ export async function generateLargePdf(
   
   // 100페이지 이하면 일반 생성
   if (totalPages <= 100) {
-    return generatePdfFromElement(container, title, pageSize, onProgress)
+    return generatePdfFromElement(container, title, pageSize, (current, total) => {
+      if (onProgress) onProgress(current, total, `${current}/${total} 페이지 처리 중...`)
+    })
   }
 
   // 대용량: 청크로 나눠서 처리
