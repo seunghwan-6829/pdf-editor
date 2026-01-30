@@ -899,6 +899,154 @@ body {
   line-height: 1.5;
 }
 
+/* AI 수정 모달 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  max-width: 90%;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.ai-edit-modal {
+  width: 420px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  flex: 1;
+}
+
+.modal-page-info {
+  font-size: 0.8rem;
+  color: var(--accent);
+  background: var(--surface-2);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0.25rem;
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 1.25rem;
+}
+
+.ai-edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ai-edit-section label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ai-edit-section textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  resize: none;
+  min-height: 100px;
+}
+
+.ai-edit-section textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.ai-edit-divider {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 1.25rem 0;
+  position: relative;
+}
+
+.ai-edit-divider::before,
+.ai-edit-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 40%;
+  height: 1px;
+  background: var(--border);
+}
+
+.ai-edit-divider::before {
+  left: 0;
+}
+
+.ai-edit-divider::after {
+  right: 0;
+}
+
+.ai-edit-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0 0 0.5rem 0;
+  text-align: center;
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: white;
+  border: none;
+}
+
+.btn-accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--border);
+}
+
 /* 리사이즈 핸들 */
 .resize-handle {
   position: absolute;

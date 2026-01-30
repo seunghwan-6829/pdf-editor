@@ -172,6 +172,11 @@ export default function App() {
   const [showApiKey, setShowApiKey] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   
+  // AI 수정 모달
+  const [showAiEditModal, setShowAiEditModal] = useState(false)
+  const [aiEditInstruction, setAiEditInstruction] = useState('')
+  const [isAiEditing, setIsAiEditing] = useState(false)
+  
   const [pages, setPages] = useState<Page[]>([])
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([])
@@ -661,6 +666,185 @@ export default function App() {
     } finally {
       setIsLoading(false)
       setGenerationProgress({ current: 0, total: 0, chapterName: '' })
+    }
+  }
+
+  // 현재 페이지 블록들을 텍스트로 변환
+  const pageBlocksToText = (blocks: Block[]): string => {
+    return blocks.map(b => {
+      if (b.type === 'heading') {
+        const size = b.style?.fontSize
+        if (size === 26) return `# ${b.content}`
+        if (size === 17) return `## ${b.content}`
+        return `### ${b.content}`
+      }
+      if (b.type === 'quote') return `> ${b.content}`
+      if (b.type === 'list') return b.content
+      if (b.type === 'step') return `[STEP ${b.content.split('|')[0].replace('STEP ', '')}] ${b.content.split('|')[1]}`
+      if (b.type === 'summary') return `[SUMMARY] ${b.content.split('|')[1]}`
+      if (b.type === 'bigquote') return `[QUOTE] ${b.content}`
+      if (b.type === 'checklist') return `[x] ${b.content.replace('✅ ', '')}`
+      if (b.type === 'highlight') return `[HIGHLIGHT] ${b.content}`
+      if (b.type === 'image') return b.content.startsWith('📷') ? `[IMAGE: ${b.content.split('\n')[1] || ''}]` : ''
+      return b.content.replace(/<[^>]*>/g, '')
+    }).join('\n\n')
+  }
+
+  // AI 페이지 수정 (지시사항 기반)
+  const aiEditCurrentPage = async () => {
+    if (!apiKey.trim()) {
+      setError('API 키를 입력해주세요')
+      setShowApiKey(true)
+      return
+    }
+    if (!currentPage || currentPage.blocks.length === 0) {
+      setError('수정할 페이지가 없습니다')
+      return
+    }
+    if (!aiEditInstruction.trim()) {
+      setError('수정 지시사항을 입력해주세요')
+      return
+    }
+
+    setIsAiEditing(true)
+    setError(null)
+
+    try {
+      const currentContent = pageBlocksToText(currentPage.blocks)
+      
+      const editPrompt = `현재 페이지 내용:
+---
+${currentContent}
+---
+
+【수정 지시사항】
+${aiEditInstruction}
+
+【규칙】
+- 위 지시사항에 따라 내용을 수정해주세요
+- 기존 형식(마크다운)을 유지하세요
+- > 콜아웃, [STEP N], [SUMMARY], [QUOTE], [x], [HIGHLIGHT], [IMAGE: 설명] 등 레이아웃 요소 활용
+- 코드블록, 표, 구분선 금지
+
+수정된 내용만 출력해주세요:`
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: editPrompt }],
+        }),
+      })
+
+      if (!response.ok) throw new Error('API 오류')
+      
+      const data = await response.json()
+      const newContent = data.content[0].text
+      
+      // 새 콘텐츠를 블록으로 변환
+      const tempPages = parseMarkdownToPages(newContent, previewSize)
+      if (tempPages.length > 0) {
+        const newPages = [...pages]
+        newPages[currentPageIndex] = {
+          ...newPages[currentPageIndex],
+          blocks: tempPages[0].blocks
+        }
+        setPages(newPages)
+        saveToHistory(newPages)
+      }
+      
+      setShowAiEditModal(false)
+      setAiEditInstruction('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'AI 수정 실패')
+    } finally {
+      setIsAiEditing(false)
+    }
+  }
+
+  // AI 페이지 재생성
+  const aiRegeneratePage = async () => {
+    if (!apiKey.trim()) {
+      setError('API 키를 입력해주세요')
+      setShowApiKey(true)
+      return
+    }
+    if (!currentPage || currentPage.blocks.length === 0) {
+      setError('재생성할 페이지가 없습니다')
+      return
+    }
+
+    setIsAiEditing(true)
+    setError(null)
+
+    try {
+      const currentContent = pageBlocksToText(currentPage.blocks)
+      
+      // 제목/주제 추출
+      const headingBlock = currentPage.blocks.find(b => b.type === 'heading')
+      const topic = headingBlock?.content || '이 섹션'
+      
+      const regenPrompt = `다음 내용의 주제를 유지하면서 완전히 새롭게 작성해주세요:
+
+기존 주제: ${topic}
+기존 내용 참고:
+---
+${currentContent.slice(0, 500)}...
+---
+
+【작성 규칙】
+- 같은 주제로 더 풍부하고 새로운 관점으로 작성
+- 5-8개 문단으로 상세히 작성
+- > 콜아웃, [STEP N], [SUMMARY], [QUOTE], [x], [HIGHLIGHT] 등 다양한 레이아웃 요소 활용
+- [IMAGE: 설명] 형태로 이미지 위치 2-3개 표시
+- 코드블록, 표, 구분선 금지
+
+새롭게 작성된 내용만 출력:`
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8000,
+          messages: [{ role: 'user', content: regenPrompt }],
+        }),
+      })
+
+      if (!response.ok) throw new Error('API 오류')
+      
+      const data = await response.json()
+      const newContent = data.content[0].text
+      
+      // 새 콘텐츠를 블록으로 변환
+      const tempPages = parseMarkdownToPages(newContent, previewSize)
+      if (tempPages.length > 0) {
+        const newPages = [...pages]
+        newPages[currentPageIndex] = {
+          ...newPages[currentPageIndex],
+          blocks: tempPages[0].blocks
+        }
+        setPages(newPages)
+        saveToHistory(newPages)
+      }
+      
+      setShowAiEditModal(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'AI 재생성 실패')
+    } finally {
+      setIsAiEditing(false)
     }
   }
 
@@ -1574,6 +1758,15 @@ ${tocText}
             <button className={`tab ${mode === 'ebook' ? 'active' : ''}`} onClick={() => setMode('ebook')}>전자책</button>
             <button className={`tab ${mode === 'simple' ? 'active' : ''}`} onClick={() => setMode('simple')}>문서</button>
           </div>
+          {pages.length > 0 && (
+            <button 
+              className="btn btn-accent btn-sm" 
+              onClick={() => setShowAiEditModal(true)}
+              disabled={isLoading || isAiEditing}
+            >
+              ✨ AI 수정
+            </button>
+          )}
         </div>
         
         <div className="header-center">
@@ -1643,6 +1836,52 @@ ${tocText}
         <div className="error-bar">
           <span>⚠️ {error}</span>
           <button onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      {/* AI 수정 모달 */}
+      {showAiEditModal && (
+        <div className="modal-overlay" onClick={() => !isAiEditing && setShowAiEditModal(false)}>
+          <div className="modal ai-edit-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>✨ AI 페이지 수정</h3>
+              <span className="modal-page-info">현재 {currentPageIndex + 1}페이지</span>
+              <button 
+                className="modal-close" 
+                onClick={() => setShowAiEditModal(false)}
+                disabled={isAiEditing}
+              >✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="ai-edit-section">
+                <label>수정 지시사항</label>
+                <textarea 
+                  value={aiEditInstruction}
+                  onChange={e => setAiEditInstruction(e.target.value)}
+                  placeholder="예: 더 자세하게 설명해줘, 예시를 추가해줘, 톤을 부드럽게 바꿔줘..."
+                  disabled={isAiEditing}
+                />
+                <button 
+                  className="btn btn-primary btn-full"
+                  onClick={aiEditCurrentPage}
+                  disabled={isAiEditing || !aiEditInstruction.trim()}
+                >
+                  {isAiEditing ? <><span className="spinner-small"></span> 수정 중...</> : '📝 지시사항대로 수정'}
+                </button>
+              </div>
+              <div className="ai-edit-divider">또는</div>
+              <div className="ai-edit-section">
+                <p className="ai-edit-desc">같은 주제로 내용을 완전히 새롭게 작성합니다.</p>
+                <button 
+                  className="btn btn-secondary btn-full"
+                  onClick={aiRegeneratePage}
+                  disabled={isAiEditing}
+                >
+                  {isAiEditing ? <><span className="spinner-small"></span> 재생성 중...</> : '🔄 재생성'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
