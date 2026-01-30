@@ -2662,7 +2662,12 @@ ${tocText}
                     className={`layer-item ${selectedBlockIds.includes(block.id) ? 'selected' : ''} ${block.locked ? 'locked' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation()
-                      setSelectedBlockIds([block.id])
+                      // 이미 선택된 레이어 클릭하면 선택 해제 (토글)
+                      if (selectedBlockIds.includes(block.id) && selectedBlockIds.length === 1) {
+                        setSelectedBlockIds([])
+                      } else {
+                        setSelectedBlockIds([block.id])
+                      }
                       setIsDragging(false)
                     }}
                   >
