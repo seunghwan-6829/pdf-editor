@@ -386,7 +386,7 @@ export default function App() {
     setView('editor')
   }
 
-  // 분할 생성 (목차별로, 스트리밍)
+  // 분할 생성 (세부목차 단위로 각각 API 호출)
   const generateByChapters = async () => {
     const validChapters = tocItems.filter(ch => ch.title.trim())
     
@@ -404,49 +404,96 @@ export default function App() {
       return
     }
 
+    // 총 생성할 항목 수 계산 (세부목차가 있으면 세부목차 개수, 없으면 챕터 1개)
+    let totalItems = 0
+    const generationPlan: { chapterIdx: number; chapterTitle: string; subIdx?: number; subTitle?: string }[] = []
+    
+    validChapters.forEach((chapter, chIdx) => {
+      const validSubs = chapter.subItems.filter(s => s.title.trim())
+      if (validSubs.length > 0) {
+        validSubs.forEach((sub, sIdx) => {
+          generationPlan.push({ 
+            chapterIdx: chIdx, 
+            chapterTitle: chapter.title, 
+            subIdx: sIdx, 
+            subTitle: sub.title 
+          })
+          totalItems++
+        })
+      } else {
+        generationPlan.push({ chapterIdx: chIdx, chapterTitle: chapter.title })
+        totalItems++
+      }
+    })
+
     setIsLoading(true)
     setError(null)
     setPages([])
     setCurrentPageIndex(0)
     setHistory([])
     setHistoryIndex(-1)
-    setGenerationProgress({ current: 0, total: validChapters.length, chapterName: '' })
+    setGenerationProgress({ current: 0, total: totalItems, chapterName: '' })
 
     let allContent = ''
+    let currentChapterIdx = -1
 
     try {
-      for (let i = 0; i < validChapters.length; i++) {
-        const chapter = validChapters[i]
+      for (let i = 0; i < generationPlan.length; i++) {
+        const item = generationPlan[i]
+        const isNewChapter = item.chapterIdx !== currentChapterIdx
+        currentChapterIdx = item.chapterIdx
+
+        const displayName = item.subTitle 
+          ? `${item.chapterIdx + 1}장 - ${item.subTitle}` 
+          : `${item.chapterIdx + 1}장: ${item.chapterTitle}`
+        
         setGenerationProgress({ 
           current: i + 1, 
-          total: validChapters.length, 
-          chapterName: chapter.title 
+          total: totalItems, 
+          chapterName: displayName 
         })
 
-        const subItems = chapter.subItems
-          .filter(s => s.title.trim())
-          .map(s => s.title)
+        let sectionPrompt = ''
+        
+        if (item.subTitle) {
+          // 세부목차 단위 생성
+          sectionPrompt = `${isNewChapter && i === 0 ? `# ${bookTitle}\n\n` : ''}${isNewChapter ? `## ${item.chapterIdx + 1}장: ${item.chapterTitle}\n\n` : ''}### ${item.chapterIdx + 1}.${(item.subIdx || 0) + 1} ${item.subTitle}
 
-        const subItemsText = subItems.length > 0 
-          ? subItems.map((s, idx) => `  ${i + 1}.${idx + 1} ${s}`).join('\n')
-          : ''
-
-        const chapterPrompt = `${i === 0 ? `# ${bookTitle}\n\n` : ''}## ${i + 1}장: ${chapter.title}
-
-${subItemsText ? `【이 챕터 구성】\n${subItemsText}\n\n` : ''}
-
-【작성 규칙】
-- 각 소제목(###) 아래 3-5개 문단, 문단 사이 빈 줄로 구분
-- > 콜아웃으로 핵심 포인트 (팁, 중요, 예시, 데이터 등)
+【작성 규칙 - 이 세부목차를 최소 10페이지 분량으로 상세히 작성】
+- 5-8개 이상의 문단으로 깊이 있게 작성
+- 각 문단은 최소 4-5문장으로 구성
+- 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
+- > 콜아웃으로 핵심 포인트, 팁, 중요사항, 예시, 통계 등 표시
 - **굵게**로 키워드 강조
-- 적절한 위치에 [IMAGE: 설명] 형태로 이미지 위치 표시
-- 목록(-) 활용해 정보 정리
+- 적절한 위치에 [IMAGE: 설명] 형태로 이미지 위치 표시 (2-3개)
+- 목록(-)으로 세부 정보 정리
+- 문단 사이 빈 줄로 구분
 
-【금지】코드블록, 표, 구분선
+【금지】코드블록, 표, 구분선, 짧은 요약
 
 주제: ${prompt}
 
-이 챕터를 깊이 있게 작성해주세요.`
+이 세부목차 "${item.subTitle}"에 대해 전문가 수준으로 깊이 있게 작성해주세요. 독자가 실제로 적용할 수 있는 구체적인 내용으로 채워주세요.`
+        } else {
+          // 세부목차 없는 챕터 전체 생성
+          sectionPrompt = `${i === 0 ? `# ${bookTitle}\n\n` : ''}## ${item.chapterIdx + 1}장: ${item.chapterTitle}
+
+【작성 규칙 - 이 챕터를 최소 15페이지 분량으로 상세히 작성】
+- 8-12개 이상의 문단으로 깊이 있게 작성
+- 각 문단은 최소 4-5문장으로 구성
+- 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
+- > 콜아웃으로 핵심 포인트, 팁, 중요사항, 예시, 통계 등 표시
+- **굵게**로 키워드 강조
+- 적절한 위치에 [IMAGE: 설명] 형태로 이미지 위치 표시 (3-5개)
+- 목록(-)으로 세부 정보 정리
+- 문단 사이 빈 줄로 구분
+
+【금지】코드블록, 표, 구분선, 짧은 요약
+
+주제: ${prompt}
+
+이 챕터 "${item.chapterTitle}"에 대해 전문가 수준으로 깊이 있게 작성해주세요.`
+        }
 
         // 스트리밍 호출
         const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -461,8 +508,8 @@ ${subItemsText ? `【이 챕터 구성】\n${subItemsText}\n\n` : ''}
             model: 'claude-sonnet-4-20250514',
             max_tokens: 16000,
             stream: true,
-            system: '프리미엄 전자책 작가입니다. 풍부하고 가독성 좋은 레이아웃으로 작성합니다.',
-            messages: [{ role: 'user', content: chapterPrompt }],
+            system: '프리미엄 전자책 전문 작가입니다. 독자에게 실질적 가치를 주는 깊이 있고 풍부한 콘텐츠를 작성합니다. 절대 요약하지 않고, 각 주제를 철저히 다룹니다.',
+            messages: [{ role: 'user', content: sectionPrompt }],
           }),
         })
 
@@ -472,7 +519,7 @@ ${subItemsText ? `【이 챕터 구성】\n${subItemsText}\n\n` : ''}
         if (!reader) throw new Error('스트리밍 실패')
 
         const decoder = new TextDecoder()
-        let chapterContent = ''
+        let sectionContent = ''
 
         while (true) {
           const { done, value } = await reader.read()
@@ -488,9 +535,9 @@ ${subItemsText ? `【이 챕터 구성】\n${subItemsText}\n\n` : ''}
               try {
                 const parsed = JSON.parse(data)
                 if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                  chapterContent += parsed.delta.text
+                  sectionContent += parsed.delta.text
                   // 실시간 업데이트
-                  const newPages = parseMarkdownToPages(allContent + (i > 0 ? '\n\n' : '') + chapterContent, previewSize)
+                  const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + sectionContent, previewSize)
                   setPages(newPages)
                 }
               } catch {}
@@ -498,7 +545,7 @@ ${subItemsText ? `【이 챕터 구성】\n${subItemsText}\n\n` : ''}
           }
         }
 
-        allContent += (i > 0 ? '\n\n' : '') + chapterContent
+        allContent += (allContent ? '\n\n' : '') + sectionContent
       }
 
       // 완료 후 히스토리 저장
