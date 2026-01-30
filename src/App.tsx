@@ -2734,7 +2734,7 @@ ${tocText}
                 <div className="layers-list">
                   {[...currentPage.blocks]
                     .sort((a, b) => (b.style?.zIndex || 0) - (a.style?.zIndex || 0))
-                    .map((block, idx) => (
+                    .map((block) => (
                       <div 
                         key={block.id}
                         className={`layer-item ${selectedBlockIds.includes(block.id) ? 'selected' : ''} ${block.locked ? 'locked' : ''}`}
