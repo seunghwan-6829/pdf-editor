@@ -204,10 +204,10 @@ export default function App() {
   const [clipboardBlocks, setClipboardBlocks] = useState<Block[]>([])  // 복사한 블록들
   const [editingText, setEditingText] = useState('')
   
-  // 드래그 선택 박스
-  const [isSelecting, setIsSelecting] = useState(false)
-  const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 })
-  const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 })
+  // 드래그 선택 박스 - 비활성화됨
+  // const [isSelecting, setIsSelecting] = useState(false)
+  // const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 })
+  // const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 })
   
   // 블록 조작 중인지 (ref로 즉시 반영)
   const isBlockAction = useRef(false)
@@ -1852,12 +1852,7 @@ ${tocText}
     : null
 
   // 선택 박스 스타일 - 비활성화됨
-  const selectionBoxStyle = false ? {
-    left: Math.min(selectionStart.x, selectionEnd.x),
-    top: Math.min(selectionStart.y, selectionEnd.y),
-    width: Math.abs(selectionEnd.x - selectionStart.x),
-    height: Math.abs(selectionEnd.y - selectionStart.y),
-  } : null
+  const selectionBoxStyle = null
 
   // 홈 화면
   if (view === 'home') {
