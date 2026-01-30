@@ -426,6 +426,13 @@ export default function App() {
     }
   }, [editingBlockId])
 
+  // 0번 페이지 숨김 - 페이지가 생성되면 자동으로 1번 페이지로 이동
+  useEffect(() => {
+    if (pages.length > 1 && currentPageIndex === 0) {
+      setCurrentPageIndex(1)
+    }
+  }, [pages.length, currentPageIndex])
+
   // 프로젝트 저장 (Supabase)
   const saveCurrentProject = async () => {
     if (!bookTitle.trim() || pages.length === 0) {
@@ -476,7 +483,7 @@ export default function App() {
     setPages(project.pages)
     setPrompt(project.prompt)
     setChapters(project.chapters)
-    setCurrentPageIndex(0)
+    setCurrentPageIndex(project.pages.length > 1 ? 1 : 0)  // 1페이지(인덱스0) 숨김
     setHistory([project.pages])
     setHistoryIndex(0)
     setView('editor')
@@ -2062,11 +2069,11 @@ ${tocText}
         </div>
         
         <div className="header-right">
-          {/* 페이지 네비게이션 */}
-          {pages.length > 0 && (
+          {/* 페이지 네비게이션 (0번 페이지 숨김) */}
+          {pages.length > 1 && (
             <div className="page-nav-inline">
-              <button onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))} disabled={currentPageIndex === 0}>◀</button>
-              <span>{currentPageIndex + 1} / {pages.length}</span>
+              <button onClick={() => setCurrentPageIndex(Math.max(1, currentPageIndex - 1))} disabled={currentPageIndex <= 1}>◀</button>
+              <span>{currentPageIndex} / {pages.length - 1}</span>
               <button onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))} disabled={currentPageIndex >= pages.length - 1}>▶</button>
             </div>
           )}
@@ -2750,18 +2757,18 @@ ${tocText}
         )}
 
         {/* 페이지 목록 사이드바 (기존처럼 길게) */}
-        {pages.length > 0 && (
+        {pages.length > 1 && (
           <div className="pages-sidebar">
             <div className="sidebar-header">
-              <span>📄 페이지 ({pages.length})</span>
+              <span>📄 페이지 ({pages.length - 1})</span>
               <button onClick={addNewPage} className="btn-mini" title="새 페이지 추가">+</button>
             </div>
             <div className="pages-list">
-              {pages.map((page, idx) => (
+              {pages.slice(1).map((page, idx) => (
                 <div 
                   key={page.id} 
-                  className={`page-thumbnail ${idx === currentPageIndex ? 'active' : ''}`}
-                  onClick={() => setCurrentPageIndex(idx)}
+                  className={`page-thumbnail ${(idx + 1) === currentPageIndex ? 'active' : ''}`}
+                  onClick={() => setCurrentPageIndex(idx + 1)}
                 >
                   <div className="thumbnail-preview" style={{ 
                     width: 80, 
@@ -2784,10 +2791,10 @@ ${tocText}
                     </div>
                     <span className="thumbnail-number">{idx + 1}</span>
                   </div>
-                  {pages.length > 1 && (
+                  {pages.length > 2 && (
                     <button 
                       className="thumbnail-delete" 
-                      onClick={(e) => { e.stopPropagation(); deletePage(idx) }}
+                      onClick={(e) => { e.stopPropagation(); deletePage(idx + 1) }}
                       title="페이지 삭제"
                     >
                       ✕
