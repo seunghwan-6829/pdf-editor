@@ -804,6 +804,24 @@ body {
   position: absolute;
 }
 
+/* 이미지 placeholder */
+.image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 60px;
+  font-size: 11px;
+  color: #64748b;
+  text-align: center;
+  gap: 4px;
+}
+
+.image-placeholder div:first-child {
+  font-size: 18px;
+}
+
 /* 리사이즈 핸들 */
 .resize-handle {
   position: absolute;

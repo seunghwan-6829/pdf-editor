@@ -386,58 +386,7 @@ export default function App() {
     setView('editor')
   }
 
-  // 단일 챕터 생성 (내부 함수)
-  const generateChapterContent = async (
-    chapterTitle: string, 
-    subItems: string[], 
-    chapterNum: number, 
-    isFirst: boolean,
-    bookInfo: { title: string; topic: string }
-  ): Promise<string> => {
-    const subItemsText = subItems.length > 0 
-      ? subItems.map((s, i) => `  ${chapterNum}.${i + 1} ${s}`).join('\n')
-      : ''
-    
-    const chapterPrompt = `${isFirst ? `# ${bookInfo.title}\n\n` : ''}## ${chapterNum}장: ${chapterTitle}
-
-${subItemsText ? `이 챕터의 세부 내용:\n${subItemsText}\n\n` : ''}
-
-위 구조에 맞춰 이 챕터의 내용을 상세하게 작성해주세요.
-
-【작성 규칙】
-- 각 소제목(###)마다 3-5개 문단으로 풍부하게 작성
-- 구체적인 예시, 데이터, 사례 포함
-- > 콜아웃으로 핵심 포인트 강조
-- **굵게**로 키워드 강조
-- 코드블록, 표, 구분선 사용 금지
-
-주제: ${bookInfo.topic}
-
-이 챕터만 집중해서 깊이 있게 작성해주세요.`
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8192,
-        system: '프리미엄 전자책 작가입니다. 깊이 있고 풍부한 내용을 작성합니다.',
-        messages: [{ role: 'user', content: chapterPrompt }],
-      }),
-    })
-
-    if (!response.ok) throw new Error('API 오류')
-    
-    const data = await response.json()
-    return data.content[0].text
-  }
-
-  // 분할 생성 (목차별로)
+  // 분할 생성 (목차별로, 스트리밍)
   const generateByChapters = async () => {
     const validChapters = tocItems.filter(ch => ch.title.trim())
     
@@ -478,19 +427,78 @@ ${subItemsText ? `이 챕터의 세부 내용:\n${subItemsText}\n\n` : ''}
           .filter(s => s.title.trim())
           .map(s => s.title)
 
-        const chapterContent = await generateChapterContent(
-          chapter.title,
-          subItems,
-          i + 1,
-          i === 0,
-          { title: bookTitle, topic: prompt }
-        )
+        const subItemsText = subItems.length > 0 
+          ? subItems.map((s, idx) => `  ${i + 1}.${idx + 1} ${s}`).join('\n')
+          : ''
+
+        const chapterPrompt = `${i === 0 ? `# ${bookTitle}\n\n` : ''}## ${i + 1}장: ${chapter.title}
+
+${subItemsText ? `【이 챕터 구성】\n${subItemsText}\n\n` : ''}
+
+【작성 규칙】
+- 각 소제목(###) 아래 3-5개 문단, 문단 사이 빈 줄로 구분
+- > 콜아웃으로 핵심 포인트 (팁, 중요, 예시, 데이터 등)
+- **굵게**로 키워드 강조
+- 적절한 위치에 [IMAGE: 설명] 형태로 이미지 위치 표시
+- 목록(-) 활용해 정보 정리
+
+【금지】코드블록, 표, 구분선
+
+주제: ${prompt}
+
+이 챕터를 깊이 있게 작성해주세요.`
+
+        // 스트리밍 호출
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 16000,
+            stream: true,
+            system: '프리미엄 전자책 작가입니다. 풍부하고 가독성 좋은 레이아웃으로 작성합니다.',
+            messages: [{ role: 'user', content: chapterPrompt }],
+          }),
+        })
+
+        if (!response.ok) throw new Error('API 오류')
+
+        const reader = response.body?.getReader()
+        if (!reader) throw new Error('스트리밍 실패')
+
+        const decoder = new TextDecoder()
+        let chapterContent = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6)
+              if (data === '[DONE]') continue
+              try {
+                const parsed = JSON.parse(data)
+                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                  chapterContent += parsed.delta.text
+                  // 실시간 업데이트
+                  const newPages = parseMarkdownToPages(allContent + (i > 0 ? '\n\n' : '') + chapterContent, previewSize)
+                  setPages(newPages)
+                }
+              } catch {}
+            }
+          }
+        }
 
         allContent += (i > 0 ? '\n\n' : '') + chapterContent
-
-        // 실시간 업데이트
-        const newPages = parseMarkdownToPages(allContent, previewSize)
-        setPages(newPages)
       }
 
       // 완료 후 히스토리 저장
@@ -592,7 +600,7 @@ ${tocText}
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 8192,
+          max_tokens: 16000,
           stream: true,
           system: '전문 전자책 작가입니다. Markdown 형식으로 간결하게 작성합니다.',
           messages: [{ role: 'user', content: userPrompt }],
@@ -666,7 +674,8 @@ ${tocText}
       
       if (!trimmed) {
         if (!lastWasEmpty) {
-          y += 6
+          // 문단 끝이면 더 큰 간격
+          y += (lastBlockType === 'text') ? 12 : 8
           lastWasEmpty = true
         }
         continue
@@ -763,12 +772,28 @@ ${tocText}
           x, y: y + marginTop, width: contentWidth,
         }
         lastBlockType = 'list'
+      } else if (trimmed.startsWith('[IMAGE:') || trimmed.startsWith('[이미지:')) {
+        // 이미지 placeholder
+        const desc = trimmed.replace(/\[IMAGE:|이미지:|\]/gi, '').trim()
+        blockHeight = 80
+        marginTop = 10
+        block = {
+          id: generateId(), type: 'image', content: `📷 이미지 영역\n${desc}`,
+          x: x + 20, y: y + marginTop, width: contentWidth - 40,
+          style: { 
+            background: '#f1f5f9', 
+            border: '2px dashed #94a3b8',
+            borderRadius: '8px',
+            padding: '20px',
+            textAlign: 'center',
+            color: '#64748b'
+          }
+        }
+        lastBlockType = 'image'
       } else if (trimmed.startsWith('|')) {
         // 테이블 행 -> 리스트 형태로 변환
-        // |---|---| 같은 구분선은 무시
         if (trimmed.includes('---')) continue
         
-        // 테이블 내용 추출
         const cells = trimmed.split('|').filter(c => c.trim())
         if (cells.length === 0) continue
         
@@ -1545,12 +1570,21 @@ ${tocText}
                         autoFocus
                       />
                     ) : block.type === 'image' ? (
-                      <>
-                        <img src={block.content} alt="" style={{ width: '100%' }} />
-                        {isEditing && selectedBlockIds.includes(block.id) && !block.locked && (
-                          <div className="resize-handle" onMouseDown={(e) => handleResizeStart(e, block)} />
-                        )}
-                      </>
+                      block.content.startsWith('📷') ? (
+                        // 이미지 placeholder
+                        <div className="image-placeholder">
+                          {block.content.split('\n').map((line, i) => (
+                            <div key={i}>{line}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <>
+                          <img src={block.content} alt="" style={{ width: '100%' }} />
+                          {isEditing && selectedBlockIds.includes(block.id) && !block.locked && (
+                            <div className="resize-handle" onMouseDown={(e) => handleResizeStart(e, block)} />
+                          )}
+                        </>
+                      )
                     ) : block.type === 'quote' ? (
                       <div className="quote-content">💡 {block.content}</div>
                     ) : block.type === 'list' ? (
@@ -1594,7 +1628,15 @@ ${tocText}
                     }}
                   >
                     {block.type === 'image' ? (
-                      <img src={block.content} alt="" style={{ width: '100%' }} />
+                      block.content.startsWith('📷') ? (
+                        <div className="image-placeholder">
+                          {block.content.split('\n').map((line, i) => (
+                            <div key={i}>{line}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <img src={block.content} alt="" style={{ width: '100%' }} />
+                      )
                     ) : block.type === 'quote' ? (
                       <div className="quote-content">💡 {block.content}</div>
                     ) : block.type === 'list' ? (
