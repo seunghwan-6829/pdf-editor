@@ -1,181 +1,372 @@
-import { useState } from 'react'
-import { generatePdf } from './pdf/pdfGenerator'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  checkFileSize,
+  loadPdfFromFile,
+  getPage,
+  renderPageToCanvas,
+  getTextContent,
+} from './pdf/pdfLoader'
+import { groupTextItemsIntoWords, type TextWord } from './pdf/textGrouping'
+import { savePdfWithEdits, type EditRecord } from './pdf/pdfSaver'
 import './App.css'
 
-export default function App() {
-  const [prompt, setPrompt] = useState('')
-  const [content, setContent] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+const SCALE = 1.5
+const MAX_MB = 100
 
-  const generateContent = async () => {
-    if (!prompt.trim()) {
-      setError('프롬프트를 입력해주세요')
+type Tool = 'edit' | 'move' | 'highlight' | 'draw'
+type PageData = { viewportHeight: number; words: TextWord[] }
+
+export default function App() {
+  const [pdfDoc, setPdfDoc] = useState<Awaited<ReturnType<typeof loadPdfFromFile>> | null>(null)
+  const [numPages, setNumPages] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageDataMap, setPageDataMap] = useState<Map<number, PageData>>(new Map())
+  const [edits, setEdits] = useState<EditRecord[]>([])
+  const [originalArrayBuffer, setOriginalArrayBuffer] = useState<ArrayBuffer | null>(null)
+  const [fileName, setFileName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [activeTool, setActiveTool] = useState<Tool>('edit')
+  
+  // 인라인 편집
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editingText, setEditingText] = useState('')
+  
+  // 이동
+  const [movingIndex, setMovingIndex] = useState<number | null>(null)
+  const [moveOffset, setMoveOffset] = useState({ x: 0, y: 0 })
+
+  const loadFile = useCallback(async (file: File) => {
+    setError(null)
+    const check = checkFileSize(file)
+    if (!check.ok) {
+      setError(check.message ?? '파일 크기 초과')
       return
     }
-
-    setIsLoading(true)
-    setError(null)
-
     try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || `API 오류: ${response.status}`)
-      }
-
-      setContent(data.content)
+      const buffer = await file.arrayBuffer()
+      setOriginalArrayBuffer(buffer)
+      setFileName(file.name)
+      const pdf = await loadPdfFromFile(file)
+      setPdfDoc(pdf)
+      setNumPages(pdf.numPages)
+      setCurrentPage(1)
+      setPageDataMap(new Map())
+      setEdits([])
+      setEditingIndex(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'API 호출 실패')
-    } finally {
-      setIsLoading(false)
+      setError(e instanceof Error ? e.message : 'PDF 로드 실패')
     }
+  }, [])
+
+  const loadPageData = useCallback(async (pageNum: number) => {
+    if (!pdfDoc || pageDataMap.has(pageNum)) return
+    const page = await getPage(pdfDoc, pageNum)
+    const { items, viewport } = await getTextContent(page, SCALE)
+    const words = groupTextItemsIntoWords(items, pageNum - 1, SCALE, viewport.height)
+    setPageDataMap(m => new Map(m).set(pageNum, { viewportHeight: viewport.height, words }))
+  }, [pdfDoc, pageDataMap])
+
+  useEffect(() => {
+    if (pdfDoc && currentPage) loadPageData(currentPage)
+  }, [pdfDoc, currentPage, loadPageData])
+
+  const currentData = pageDataMap.get(currentPage)
+  const words = currentData?.words ?? []
+
+  // 텍스트 수정 적용
+  const applyEdit = (index: number, newText: string) => {
+    const word = words[index]
+    if (!word || newText === word.text) {
+      setEditingIndex(null)
+      return
+    }
+    
+    const rec: EditRecord = {
+      pageIndex: currentPage - 1,
+      wordIndex: index,
+      originalText: word.text,
+      newText,
+      bboxPdf: { ...word.bbox },
+    }
+    
+    setEdits(prev => {
+      const filtered = prev.filter(e => !(e.pageIndex === rec.pageIndex && e.wordIndex === rec.wordIndex))
+      return [...filtered, rec]
+    })
+    
+    // words 업데이트
+    setPageDataMap(m => {
+      const data = m.get(currentPage)
+      if (!data) return m
+      const newWords = [...data.words]
+      newWords[index] = { ...newWords[index], text: newText }
+      return new Map(m).set(currentPage, { ...data, words: newWords })
+    })
+    
+    setEditingIndex(null)
   }
 
-  const downloadPdf = async () => {
-    if (!content.trim()) {
-      setError('먼저 내용을 생성해주세요')
-      return
-    }
+  // 텍스트 이동
+  const moveWord = (index: number, dx: number, dy: number) => {
+    setPageDataMap(m => {
+      const data = m.get(currentPage)
+      if (!data) return m
+      const newWords = [...data.words]
+      const word = newWords[index]
+      newWords[index] = {
+        ...word,
+        bbox: {
+          ...word.bbox,
+          left: word.bbox.left + dx,
+          top: word.bbox.top + dy,
+        }
+      }
+      return new Map(m).set(currentPage, { ...data, words: newWords })
+    })
+  }
 
+  // 저장
+  const handleSave = async () => {
+    if (!originalArrayBuffer) return
+    setSaving(true)
     try {
-      const pdfBytes = await generatePdf(content)
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
+      const getViewportHeight = (pageIndex: number) => pageDataMap.get(pageIndex + 1)?.viewportHeight ?? 800
+      const bytes = await savePdfWithEdits(originalArrayBuffer, edits, getViewportHeight, SCALE)
+      const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
       const a = document.createElement('a')
-      a.href = url
-      a.download = 'document.pdf'
+      a.href = URL.createObjectURL(blob)
+      a.download = fileName.replace(/\.pdf$/i, '_수정본.pdf') || '수정본.pdf'
       a.click()
-      URL.revokeObjectURL(url)
+      URL.revokeObjectURL(a.href)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'PDF 생성 실패')
+      setError(e instanceof Error ? e.message : '저장 실패')
+    } finally {
+      setSaving(false)
     }
   }
 
   return (
     <div className="app">
       <header className="header">
-        <h1>📄 AI PDF 제작</h1>
-        <span className="powered-by">Powered by Claude</span>
+        <h1>PDF 편집기</h1>
+        <div className="file-input-wrap">
+          <input type="file" accept=".pdf" onChange={e => { 
+            const f = e.target.files?.[0]
+            if (f) loadFile(f)
+            e.target.value = ''
+          }} />
+          <button className="btn btn-primary">PDF 열기 (최대 {MAX_MB}MB)</button>
+        </div>
+        {pdfDoc && (
+          <button className="btn btn-save" onClick={handleSave} disabled={edits.length === 0 || saving}>
+            {saving ? '저장 중…' : `저장 (${edits.length}건)`}
+          </button>
+        )}
       </header>
+
+      {pdfDoc && (
+        <div className="toolbar">
+          <button className={`tool-btn ${activeTool === 'edit' ? 'active' : ''}`} onClick={() => setActiveTool('edit')}>
+            ✎ 텍스트 수정
+          </button>
+          <button className={`tool-btn ${activeTool === 'move' ? 'active' : ''}`} onClick={() => setActiveTool('move')}>
+            ✥ 텍스트 이동
+          </button>
+          <button className={`tool-btn ${activeTool === 'highlight' ? 'active' : ''}`} onClick={() => setActiveTool('highlight')}>
+            🖍 강조
+          </button>
+          <button className={`tool-btn ${activeTool === 'draw' ? 'active' : ''}`} onClick={() => setActiveTool('draw')}>
+            ✏ 그리기
+          </button>
+        </div>
+      )}
 
       {error && <div className="error-bar">{error}</div>}
 
       <div className="main">
-        <div className="input-section">
-          <h2>프롬프트 입력</h2>
-          <textarea
-            placeholder="작성할 문서의 주제나 내용을 입력하세요...
-
-예시:
-- 2024년 AI 기술 트렌드 보고서
-- 프로젝트 기획서: 모바일 앱 개발
-- 마케팅 전략 분석 리포트"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="prompt-input"
-          />
-          <div className="button-row">
-            <button 
-              onClick={generateContent} 
-              disabled={isLoading}
-              className="btn btn-primary"
-            >
-              {isLoading ? '생성 중...' : '✨ AI로 작성하기'}
-            </button>
-            <button 
-              onClick={downloadPdf}
-              disabled={!content.trim()}
-              className="btn btn-success"
-            >
-              📥 PDF 다운로드
-            </button>
+        {!pdfDoc ? (
+          <div className="empty-state">
+            <div className="empty-icon">📄</div>
+            <p>PDF 파일을 열어 주세요</p>
           </div>
-        </div>
-
-        <div className="output-section">
-          <h2>미리보기</h2>
-          <div className="preview">
-            {content ? (
-              <MarkdownPreview content={content} />
-            ) : (
-              <div className="empty-preview">
-                <span>👆</span>
-                <p>프롬프트를 입력하고 "AI로 작성하기" 버튼을 누르세요</p>
+        ) : (
+          <>
+            <aside className="sidebar">
+              <h2>페이지</h2>
+              <div className="thumb-list">
+                {Array.from({ length: numPages }, (_, i) => i + 1).map(n => (
+                  <Thumbnail
+                    key={n}
+                    pdfDoc={pdfDoc}
+                    pageNum={n}
+                    isActive={currentPage === n}
+                    onClick={() => { setCurrentPage(n); setEditingIndex(null) }}
+                  />
+                ))}
               </div>
-            )}
-          </div>
-        </div>
+            </aside>
+
+            <div className="viewer-wrap">
+              <PageViewer
+                pdfDoc={pdfDoc}
+                pageNum={currentPage}
+                words={words}
+                activeTool={activeTool}
+                editingIndex={editingIndex}
+                editingText={editingText}
+                onStartEdit={(i) => {
+                  if (activeTool === 'edit') {
+                    setEditingIndex(i)
+                    setEditingText(words[i].text)
+                  }
+                }}
+                onChangeEdit={setEditingText}
+                onFinishEdit={() => {
+                  if (editingIndex !== null) applyEdit(editingIndex, editingText)
+                }}
+                onCancelEdit={() => setEditingIndex(null)}
+                movingIndex={movingIndex}
+                onStartMove={(i, e) => {
+                  if (activeTool === 'move') {
+                    setMovingIndex(i)
+                    const word = words[i]
+                    setMoveOffset({ x: e.clientX - word.bbox.left, y: e.clientY - word.bbox.top })
+                  }
+                }}
+                onMove={(e) => {
+                  if (movingIndex !== null && activeTool === 'move') {
+                    const word = words[movingIndex]
+                    const newLeft = e.clientX - moveOffset.x
+                    const newTop = e.clientY - moveOffset.y
+                    moveWord(movingIndex, newLeft - word.bbox.left, newTop - word.bbox.top)
+                  }
+                }}
+                onEndMove={() => setMovingIndex(null)}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-// 간단한 Markdown 렌더러
-function MarkdownPreview({ content }: { content: string }) {
-  const html = parseMarkdown(content)
-  return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />
-}
-
-function parseMarkdown(md: string): string {
-  let html = md
-    // 코드 블록
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-    // 인라인 코드
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // 헤더
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    // 굵게/기울임
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    // 순서 없는 목록
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    // 순서 있는 목록
-    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-    // 줄바꿈
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br>')
-
-  // 표 처리
-  html = parseTable(html)
-
-  return `<p>${html}</p>`
-}
-
-function parseTable(html: string): string {
-  const tableRegex = /\|(.+)\|[\r\n]+\|[-:\s|]+\|[\r\n]+((?:\|.+\|[\r\n]*)+)/g
+function Thumbnail({ pdfDoc, pageNum, isActive, onClick }: {
+  pdfDoc: Awaited<ReturnType<typeof loadPdfFromFile>>
+  pageNum: number
+  isActive: boolean
+  onClick: () => void
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   
-  return html.replace(tableRegex, (_, header, body) => {
-    const headers = header.split('|').filter((h: string) => h.trim())
-    const rows = body.trim().split(/[\r\n]+/).map((row: string) => 
-      row.split('|').filter((c: string) => c.trim())
-    )
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    getPage(pdfDoc, pageNum).then(page => renderPageToCanvas(page, canvas, 0.2))
+  }, [pdfDoc, pageNum])
 
-    let table = '<table><thead><tr>'
-    headers.forEach((h: string) => {
-      table += `<th>${h.trim()}</th>`
+  return (
+    <div className={`thumb-item ${isActive ? 'active' : ''}`} onClick={onClick}>
+      <canvas ref={canvasRef} width={100} height={130} />
+      <span>{pageNum}</span>
+    </div>
+  )
+}
+
+function PageViewer({
+  pdfDoc, pageNum, words, activeTool,
+  editingIndex, editingText, onStartEdit, onChangeEdit, onFinishEdit, onCancelEdit,
+  movingIndex, onStartMove, onMove, onEndMove
+}: {
+  pdfDoc: Awaited<ReturnType<typeof loadPdfFromFile>>
+  pageNum: number
+  words: TextWord[]
+  activeTool: Tool
+  editingIndex: number | null
+  editingText: string
+  onStartEdit: (i: number) => void
+  onChangeEdit: (text: string) => void
+  onFinishEdit: () => void
+  onCancelEdit: () => void
+  movingIndex: number | null
+  onStartMove: (i: number, e: React.MouseEvent) => void
+  onMove: (e: React.MouseEvent) => void
+  onEndMove: () => void
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    getPage(pdfDoc, pageNum).then(page => {
+      renderPageToCanvas(page, canvas, SCALE)
+      setCanvasSize({ width: canvas.width, height: canvas.height })
     })
-    table += '</tr></thead><tbody>'
-    
-    rows.forEach((row: string[]) => {
-      table += '<tr>'
-      row.forEach((cell: string) => {
-        table += `<td>${cell.trim()}</td>`
-      })
-      table += '</tr>'
-    })
-    table += '</tbody></table>'
-    
-    return table
-  })
+  }, [pdfDoc, pageNum])
+
+  useEffect(() => {
+    if (editingIndex !== null && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingIndex])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onFinishEdit()
+    } else if (e.key === 'Escape') {
+      onCancelEdit()
+    }
+  }
+
+  return (
+    <div 
+      ref={containerRef}
+      className="page-container"
+      onMouseMove={movingIndex !== null ? onMove : undefined}
+      onMouseUp={onEndMove}
+      onMouseLeave={onEndMove}
+    >
+      <canvas ref={canvasRef} className="page-canvas" />
+      
+      <div className="text-layer" style={{ width: canvasSize.width, height: canvasSize.height }}>
+        {words.map((word, i) => (
+          <div
+            key={i}
+            className={`text-box ${activeTool === 'edit' ? 'editable' : ''} ${activeTool === 'move' ? 'movable' : ''} ${movingIndex === i ? 'moving' : ''}`}
+            style={{
+              left: word.bbox.left,
+              top: word.bbox.top,
+              width: Math.max(word.bbox.width, 20),
+              height: Math.max(word.bbox.height, 16),
+            }}
+            onClick={() => activeTool === 'edit' && editingIndex !== i && onStartEdit(i)}
+            onMouseDown={(e) => activeTool === 'move' && onStartMove(i, e)}
+          >
+            {editingIndex === i ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={editingText}
+                onChange={e => onChangeEdit(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={onFinishEdit}
+                className="inline-edit"
+                style={{ fontSize: Math.max(word.bbox.height * 0.8, 12) }}
+              />
+            ) : (
+              <span className="text-preview" title={word.text}>
+                {word.text}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
