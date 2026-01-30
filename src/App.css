@@ -852,6 +852,16 @@ body {
   border-radius: 2px;
 }
 
+.block-textarea {
+  resize: none;
+  overflow-y: auto;
+  line-height: 1.5;
+  min-height: 60px;
+  max-height: 200px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  border: 2px solid var(--accent);
+}
+
 /* 페이지 목록 사이드바 */
 .pages-sidebar {
   width: 110px;

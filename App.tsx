@@ -1603,16 +1603,19 @@ ${tocText}
                     onDoubleClick={(e) => handleBlockDoubleClick(e, block)}
                   >
                     {editingBlockId === block.id ? (
-                      <input
-                        ref={textInputRef}
-                        type="text"
-                        className="block-input"
+                      <textarea
+                        ref={textInputRef as React.RefObject<HTMLTextAreaElement>}
+                        className="block-input block-textarea"
                         value={editingText}
                         onChange={(e) => setEditingText(e.target.value)}
                         onClick={handleTextInputClick}
                         onBlur={handleTextEditComplete}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleTextEditComplete()
+                          if (e.key === 'Enter' && e.ctrlKey) handleTextEditComplete()
+                          if (e.key === 'Escape') handleTextEditComplete()
+                        }}
+                        style={{
+                          minHeight: Math.max(60, (editingText.split('\n').length + 1) * 18),
                         }}
                         autoFocus
                       />
