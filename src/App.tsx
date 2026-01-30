@@ -1206,6 +1206,40 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
             )}
           </div>
 
+          <div ref={pagesContainerRef} id="pdf-pages-container" className="pdf-hidden">
+            {pages.map((page, pageIdx) => (
+              <div key={page.id} className="book-page for-pdf" style={{ width: previewSize.width, height: previewSize.height }}>
+                {page.blocks.map(block => (
+                  <div
+                    key={block.id}
+                    className={`block ${block.type}`}
+                    style={{
+                      left: block.x, top: block.y, width: block.width,
+                      fontSize: block.style?.fontSize,
+                      fontWeight: block.style?.fontWeight,
+                      color: block.style?.color,
+                      textAlign: block.style?.textAlign,
+                      background: block.style?.background,
+                      borderLeft: block.style?.borderLeft,
+                      padding: block.style?.padding,
+                      transform: block.rotation ? `rotate(${block.rotation}deg)` : undefined,
+                    }}
+                  >
+                    {block.type === 'image' ? (
+                      <img src={block.content} alt="" style={{ width: '100%' }} />
+                    ) : block.type === 'quote' ? (
+                      <div className="quote-content">💡 {block.content}</div>
+                    ) : block.type === 'list' ? (
+                      <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
+                    ) : (
+                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
+                    )}
+                  </div>
+                ))}
+                <div className="page-number">{pageIdx + 1}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* 페이지 목록 사이드바 */}
@@ -1257,42 +1291,6 @@ ${chapters ? `챕터 구성: ${chapters}` : ''}
             </div>
           </div>
         )}
-
-          <div ref={pagesContainerRef} id="pdf-pages-container" className="pdf-hidden">
-            {pages.map((page, pageIdx) => (
-              <div key={page.id} className="book-page for-pdf" style={{ width: previewSize.width, height: previewSize.height }}>
-                {page.blocks.map(block => (
-                  <div
-                    key={block.id}
-                    className={`block ${block.type}`}
-                    style={{
-                      left: block.x, top: block.y, width: block.width,
-                      fontSize: block.style?.fontSize,
-                      fontWeight: block.style?.fontWeight,
-                      color: block.style?.color,
-                      textAlign: block.style?.textAlign,
-                      background: block.style?.background,
-                      borderLeft: block.style?.borderLeft,
-                      padding: block.style?.padding,
-                      transform: block.rotation ? `rotate(${block.rotation}deg)` : undefined,
-                    }}
-                  >
-                    {block.type === 'image' ? (
-                      <img src={block.content} alt="" style={{ width: '100%' }} />
-                    ) : block.type === 'quote' ? (
-                      <div className="quote-content">💡 {block.content}</div>
-                    ) : block.type === 'list' ? (
-                      <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
-                    ) : (
-                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
-                    )}
-                  </div>
-                ))}
-                <div className="page-number">{pageIdx + 1}</div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   )
