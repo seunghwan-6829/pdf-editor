@@ -126,6 +126,7 @@ export default function App() {
   ])
   const [pageCount, setPageCount] = useState('5')
   const [isLoading, setIsLoading] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, chapterName: '' })
   const [error, setError] = useState<string | null>(null)
   const [showApiKey, setShowApiKey] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -385,7 +386,126 @@ export default function App() {
     setView('editor')
   }
 
-  // AI 콘텐츠 생성
+  // 단일 챕터 생성 (내부 함수)
+  const generateChapterContent = async (
+    chapterTitle: string, 
+    subItems: string[], 
+    chapterNum: number, 
+    isFirst: boolean,
+    bookInfo: { title: string; topic: string }
+  ): Promise<string> => {
+    const subItemsText = subItems.length > 0 
+      ? subItems.map((s, i) => `  ${chapterNum}.${i + 1} ${s}`).join('\n')
+      : ''
+    
+    const chapterPrompt = `${isFirst ? `# ${bookInfo.title}\n\n` : ''}## ${chapterNum}장: ${chapterTitle}
+
+${subItemsText ? `이 챕터의 세부 내용:\n${subItemsText}\n\n` : ''}
+
+위 구조에 맞춰 이 챕터의 내용을 상세하게 작성해주세요.
+
+【작성 규칙】
+- 각 소제목(###)마다 3-5개 문단으로 풍부하게 작성
+- 구체적인 예시, 데이터, 사례 포함
+- > 콜아웃으로 핵심 포인트 강조
+- **굵게**로 키워드 강조
+- 코드블록, 표, 구분선 사용 금지
+
+주제: ${bookInfo.topic}
+
+이 챕터만 집중해서 깊이 있게 작성해주세요.`
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8192,
+        system: '프리미엄 전자책 작가입니다. 깊이 있고 풍부한 내용을 작성합니다.',
+        messages: [{ role: 'user', content: chapterPrompt }],
+      }),
+    })
+
+    if (!response.ok) throw new Error('API 오류')
+    
+    const data = await response.json()
+    return data.content[0].text
+  }
+
+  // 분할 생성 (목차별로)
+  const generateByChapters = async () => {
+    const validChapters = tocItems.filter(ch => ch.title.trim())
+    
+    if (validChapters.length === 0) {
+      setError('목차를 먼저 입력해주세요')
+      return
+    }
+    if (!apiKey.trim()) {
+      setError('API 키를 입력해주세요')
+      setShowApiKey(true)
+      return
+    }
+    if (!bookTitle.trim()) {
+      setError('책 제목을 입력해주세요')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+    setPages([])
+    setCurrentPageIndex(0)
+    setHistory([])
+    setHistoryIndex(-1)
+    setGenerationProgress({ current: 0, total: validChapters.length, chapterName: '' })
+
+    let allContent = ''
+
+    try {
+      for (let i = 0; i < validChapters.length; i++) {
+        const chapter = validChapters[i]
+        setGenerationProgress({ 
+          current: i + 1, 
+          total: validChapters.length, 
+          chapterName: chapter.title 
+        })
+
+        const subItems = chapter.subItems
+          .filter(s => s.title.trim())
+          .map(s => s.title)
+
+        const chapterContent = await generateChapterContent(
+          chapter.title,
+          subItems,
+          i + 1,
+          i === 0,
+          { title: bookTitle, topic: prompt }
+        )
+
+        allContent += (i > 0 ? '\n\n' : '') + chapterContent
+
+        // 실시간 업데이트
+        const newPages = parseMarkdownToPages(allContent, previewSize)
+        setPages(newPages)
+      }
+
+      // 완료 후 히스토리 저장
+      const finalPages = parseMarkdownToPages(allContent, previewSize)
+      saveToHistory(finalPages)
+
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'API 호출 실패')
+    } finally {
+      setIsLoading(false)
+      setGenerationProgress({ current: 0, total: 0, chapterName: '' })
+    }
+  }
+
+  // AI 콘텐츠 생성 (기존 - 한번에)
   const generateContent = async () => {
     if (!apiKey.trim()) {
       setError('API 키를 입력해주세요')
@@ -1313,9 +1433,26 @@ ${tocText}
             <textarea placeholder="책에서 다룰 주제를 입력하세요..." value={prompt} onChange={(e) => setPrompt(e.target.value)} className="textarea-compact" />
           </div>
 
-          <button onClick={generateContent} disabled={isLoading} className="btn btn-primary btn-full">
-            {isLoading ? (<><span className="spinner-small"></span>생성 중...</>) : '✨ AI로 작성'}
-          </button>
+          <div className="generate-buttons">
+            <button onClick={generateContent} disabled={isLoading} className="btn btn-primary btn-full">
+              {isLoading && generationProgress.total === 0 ? (<><span className="spinner-small"></span>생성 중...</>) : '✨ 빠른 생성'}
+            </button>
+            <button 
+              onClick={generateByChapters} 
+              disabled={isLoading || tocItems.filter(ch => ch.title.trim()).length === 0} 
+              className="btn btn-success btn-full"
+              title="목차별로 나눠서 생성 (긴 콘텐츠용)"
+            >
+              {isLoading && generationProgress.total > 0 ? (
+                <><span className="spinner-small"></span>{generationProgress.current}/{generationProgress.total} 생성 중</>
+              ) : '📚 챕터별 생성'}
+            </button>
+          </div>
+          {isLoading && generationProgress.chapterName && (
+            <div className="progress-info">
+              현재: {generationProgress.chapterName}
+            </div>
+          )}
         </div>
 
         <div 

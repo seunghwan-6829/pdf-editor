@@ -555,6 +555,23 @@ body {
   color: var(--accent);
 }
 
+/* 생성 버튼 그룹 */
+.generate-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.progress-info {
+  font-size: 0.75rem;
+  color: var(--accent);
+  text-align: center;
+  padding: 0.25rem;
+  background: var(--surface-2);
+  border-radius: 4px;
+  margin-top: 0.25rem;
+}
+
 /* 페이지 사이즈 선택 */
 .page-size-selector.compact {
   display: flex;
