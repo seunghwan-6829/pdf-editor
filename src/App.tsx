@@ -16,7 +16,7 @@ type Mode = 'simple' | 'ebook'
 type PageSize = 'A4' | 'A5' | 'B5'
 type BlockType = 'text' | 'heading' | 'image' | 'list' | 'quote' | 'table' | 'step' | 'summary' | 'bigquote' | 'checklist' | 'highlight' | 'shape'
 type View = 'login' | 'home' | 'editor' | 'admin'
-type UserRole = 'admin' | 'approved' | 'pending'
+type UserRole = 'admin' | 'viewer' | 'approved' | 'pending'
 
 interface Block {
   id: string
@@ -358,9 +358,9 @@ export default function App() {
   const loadProjectsFromSupabase = async (userId?: string, role?: UserRole) => {
     setIsLoadingProjects(true)
     try {
-      // 관리자는 모든 프로젝트, 승인된 사용자는 본인 프로젝트만
+      // 관리자/열람자는 모든 프로젝트, 승인된 사용자는 본인 프로젝트만
       let rows: ProjectRow[] = []
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'viewer') {
         rows = await fetchAllProjects()
       } else if (role === 'approved') {
         rows = await fetchProjects(userId)
@@ -2291,27 +2291,59 @@ ${tocText}
                   <div key={user.id} className="table-row">
                     <span className="user-email-cell">{user.email}</span>
                     <span className={`role-badge ${user.role}`}>
-                      {user.role === 'admin' ? '관리자' : user.role === 'approved' ? '승인됨' : '대기중'}
+                      {user.role === 'admin' ? '관리자' : user.role === 'viewer' ? '열람자' : user.role === 'approved' ? '승인됨' : '대기중'}
                     </span>
                     <span>{new Date(user.created_at).toLocaleDateString()}</span>
                     <span className="actions">
                       {user.role !== 'admin' && (
                         <>
                           {user.role === 'pending' && (
-                            <button 
-                              className="btn btn-sm btn-success"
-                              onClick={() => handleUpdateUserRole(user.id, 'approved')}
-                            >
-                              승인
-                            </button>
+                            <>
+                              <button 
+                                className="btn btn-sm btn-success"
+                                onClick={() => handleUpdateUserRole(user.id, 'approved')}
+                              >
+                                승인
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-info"
+                                onClick={() => handleUpdateUserRole(user.id, 'viewer')}
+                              >
+                                열람자
+                              </button>
+                            </>
                           )}
                           {user.role === 'approved' && (
-                            <button 
-                              className="btn btn-sm btn-warning"
-                              onClick={() => handleUpdateUserRole(user.id, 'pending')}
-                            >
-                              승인취소
-                            </button>
+                            <>
+                              <button 
+                                className="btn btn-sm btn-info"
+                                onClick={() => handleUpdateUserRole(user.id, 'viewer')}
+                              >
+                                열람자로
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-warning"
+                                onClick={() => handleUpdateUserRole(user.id, 'pending')}
+                              >
+                                승인취소
+                              </button>
+                            </>
+                          )}
+                          {user.role === 'viewer' && (
+                            <>
+                              <button 
+                                className="btn btn-sm btn-success"
+                                onClick={() => handleUpdateUserRole(user.id, 'approved')}
+                              >
+                                승인
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-warning"
+                                onClick={() => handleUpdateUserRole(user.id, 'pending')}
+                              >
+                                승인취소
+                              </button>
+                            </>
                           )}
                         </>
                       )}

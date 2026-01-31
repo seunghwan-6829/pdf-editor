@@ -28,7 +28,7 @@ export interface ProjectRow {
 export interface UserRow {
   id: string
   email: string
-  role: 'admin' | 'approved' | 'pending'
+  role: 'admin' | 'viewer' | 'approved' | 'pending'
   created_at: string
 }
 
@@ -95,7 +95,7 @@ export const getSession = async () => {
 
 // ============ USER MANAGEMENT ============
 
-export const getUserRole = async (userId: string): Promise<'admin' | 'approved' | 'pending' | null> => {
+export const getUserRole = async (userId: string): Promise<'admin' | 'viewer' | 'approved' | 'pending' | null> => {
   if (!supabase) return null
   
   const { data, error } = await supabase
@@ -120,7 +120,7 @@ export const getAllUsers = async (): Promise<UserRow[]> => {
   return data || []
 }
 
-export const updateUserRole = async (userId: string, role: 'admin' | 'approved' | 'pending'): Promise<boolean> => {
+export const updateUserRole = async (userId: string, role: 'admin' | 'viewer' | 'approved' | 'pending'): Promise<boolean> => {
   if (!supabase) return false
   
   const { error } = await supabase
