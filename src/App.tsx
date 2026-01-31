@@ -880,13 +880,13 @@ ${aiEditInstruction}
       const data = await response.json()
       const newContent = data.content[0].text
       
-      // 새 콘텐츠를 블록으로 변환
+      // 새 콘텐츠를 블록으로 변환 (tempPages[0]은 더미, 실제 내용은 tempPages[1])
       const tempPages = parseMarkdownToPages(newContent, previewSize)
-      if (tempPages.length > 0) {
+      if (tempPages.length > 1 && tempPages[1].blocks.length > 0) {
         const newPages = [...pages]
         newPages[currentPageIndex] = {
           ...newPages[currentPageIndex],
-          blocks: tempPages[0].blocks
+          blocks: tempPages[1].blocks
         }
         setPages(newPages)
         saveToHistory(newPages)
@@ -960,13 +960,13 @@ ${currentContent.slice(0, 500)}...
       const data = await response.json()
       const newContent = data.content[0].text
       
-      // 새 콘텐츠를 블록으로 변환
+      // 새 콘텐츠를 블록으로 변환 (tempPages[0]은 더미, 실제 내용은 tempPages[1])
       const tempPages = parseMarkdownToPages(newContent, previewSize)
-      if (tempPages.length > 0) {
+      if (tempPages.length > 1 && tempPages[1].blocks.length > 0) {
         const newPages = [...pages]
         newPages[currentPageIndex] = {
           ...newPages[currentPageIndex],
-          blocks: tempPages[0].blocks
+          blocks: tempPages[1].blocks
         }
         setPages(newPages)
         saveToHistory(newPages)
