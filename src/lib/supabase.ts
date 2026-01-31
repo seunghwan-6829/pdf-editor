@@ -22,6 +22,7 @@ export interface ProjectRow {
   prompt: string
   chapters: string
   user_id?: string  // 프로젝트 소유자
+  thumbnail?: string  // Base64 썸네일 이미지
 }
 
 export interface UserRow {
@@ -189,6 +190,7 @@ export const saveProject = async (project: Omit<ProjectRow, 'created_at'>, userI
       prompt: project.prompt,
       chapters: project.chapters,
       user_id: userId || project.user_id,
+      thumbnail: project.thumbnail,
     }, { onConflict: 'id' })
     .select()
     .single()

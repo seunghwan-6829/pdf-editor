@@ -72,6 +72,7 @@ interface Project {
   pages: Page[]
   prompt: string
   chapters: string
+  thumbnail?: string  // Base64 썸네일 이미지
 }
 
 const PAGE_SIZES: Record<PageSize, { width: number; height: number; label: string }> = {
@@ -215,6 +216,12 @@ export default function App() {
   // PDF 내보내기 페이지 범위
   const [exportRange, setExportRange] = useState({ start: 1, end: 1 })
   const [showExportModal, setShowExportModal] = useState(false)
+  
+  // 프로젝트 생성 모달
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newProjectTitle, setNewProjectTitle] = useState('')
+  const [newProjectThumbnail, setNewProjectThumbnail] = useState<string | null>(null)
+  const [projectThumbnail, setProjectThumbnail] = useState<string | undefined>(undefined)
   
   // 저장 여부 추적
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -367,6 +374,7 @@ export default function App() {
         pages: row.pages as Page[],
         prompt: row.prompt,
         chapters: row.chapters,
+        thumbnail: row.thumbnail,
       }))
       setProjects(converted)
     } catch (e) {
@@ -624,6 +632,7 @@ export default function App() {
         pages: pages,
         prompt,
         chapters,
+        thumbnail: projectThumbnail,
       }, currentUser?.id)
       
       if (result) {
@@ -648,6 +657,7 @@ export default function App() {
     setPages(project.pages)
     setPrompt(project.prompt)
     setChapters(project.chapters)
+    setProjectThumbnail(project.thumbnail)
     setCurrentPageIndex(project.pages.length > 1 ? 1 : 0)  // 1페이지(인덱스0) 숨김
     setHistory([project.pages])
     setHistoryIndex(0)
@@ -667,9 +677,47 @@ export default function App() {
   }
 
   // 새 프로젝트
+  // 프로젝트 생성 모달 열기
+  const openCreateModal = () => {
+    setNewProjectTitle('')
+    setNewProjectThumbnail(null)
+    setShowCreateModal(true)
+  }
+  
+  // 썸네일 이미지 업로드 처리
+  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    // 5MB 제한
+    if (file.size > 5 * 1024 * 1024) {
+      setError('썸네일 이미지는 5MB 이하만 가능합니다')
+      return
+    }
+    
+    // 이미지 파일만
+    if (!file.type.startsWith('image/')) {
+      setError('이미지 파일만 업로드 가능합니다')
+      return
+    }
+    
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setNewProjectThumbnail(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+  
+  // 실제 프로젝트 생성
   const createNewProject = () => {
+    if (!newProjectTitle.trim()) {
+      setError('프로젝트 제목을 입력해주세요')
+      return
+    }
+    
     setCurrentProjectId(null)
-    setBookTitle('')
+    setBookTitle(newProjectTitle)
+    setProjectThumbnail(newProjectThumbnail || undefined)
     setPageSize('A4')
     setPages([])
     setPrompt('')
@@ -678,6 +726,7 @@ export default function App() {
     setHistory([])
     setHistoryIndex(-1)
     setGuidelines([])
+    setShowCreateModal(false)
     setView('editor')
   }
 
@@ -2312,7 +2361,7 @@ ${tocText}
             {isSupabaseConnected && <span className="status-badge">🟢 DB 연결됨</span>}
             <span className="user-email">{currentUser?.email}</span>
             <button className="btn btn-ghost btn-sm" onClick={handleLogout}>로그아웃</button>
-            <button className="btn btn-primary" onClick={createNewProject}>+ 새 프로젝트</button>
+            <button className="btn btn-primary" onClick={openCreateModal}>+ 새 프로젝트</button>
           </div>
         </header>
 
@@ -2335,20 +2384,20 @@ ${tocText}
               <h2>승인 대기 중입니다</h2>
               <p>관리자의 승인이 완료되면 프로젝트를 열람할 수 있습니다.</p>
               <p className="pending-notice">프로젝트 생성은 가능하지만, 열람은 승인 후 가능합니다.</p>
-              <button className="btn btn-primary btn-large" onClick={createNewProject}>+ 새 프로젝트 만들기</button>
+              <button className="btn btn-primary btn-large" onClick={openCreateModal}>+ 새 프로젝트 만들기</button>
             </div>
           ) : projects.length === 0 ? (
             <div className="empty-home">
               <div className="empty-icon">📖</div>
               <h2>아직 프로젝트가 없습니다</h2>
               <p>새 프로젝트를 만들어 AI와 함께 전자책을 제작해보세요!</p>
-              <button className="btn btn-primary btn-large" onClick={createNewProject}>+ 새 프로젝트 시작</button>
+              <button className="btn btn-primary btn-large" onClick={openCreateModal}>+ 새 프로젝트 시작</button>
             </div>
           ) : (
             <div className="projects-grid">
               {projects.map(project => (
                 <div key={project.id} className="project-card" onClick={() => loadProject(project)}>
-                  <div className="project-preview">
+                  <div className="project-preview" style={project.thumbnail ? { backgroundImage: `url(${project.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
                     <span className="project-pages">{project.pages.length}p</span>
                   </div>
                   <div className="project-info">
@@ -2368,6 +2417,53 @@ ${tocText}
             </div>
           )}
         </div>
+        
+        {/* 프로젝트 생성 모달 */}
+        {showCreateModal && (
+          <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+            <div className="create-modal" onClick={e => e.stopPropagation()}>
+              <h2>새 프로젝트 만들기</h2>
+              
+              <div className="create-form">
+                <label>프로젝트 제목</label>
+                <input
+                  type="text"
+                  placeholder="프로젝트 제목을 입력하세요"
+                  value={newProjectTitle}
+                  onChange={(e) => setNewProjectTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && createNewProject()}
+                  autoFocus
+                />
+                
+                <label>썸네일 이미지 (선택, 5MB 이하)</label>
+                <div className="thumbnail-upload">
+                  {newProjectThumbnail ? (
+                    <div className="thumbnail-preview">
+                      <img src={newProjectThumbnail} alt="썸네일 미리보기" />
+                      <button className="remove-thumbnail" onClick={() => setNewProjectThumbnail(null)}>✕</button>
+                    </div>
+                  ) : (
+                    <label className="upload-area">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleThumbnailUpload}
+                        style={{ display: 'none' }}
+                      />
+                      <span>📷 이미지 업로드</span>
+                      <span className="upload-hint">클릭하여 이미지 선택</span>
+                    </label>
+                  )}
+                </div>
+              </div>
+              
+              <div className="create-actions">
+                <button className="btn btn-ghost" onClick={() => setShowCreateModal(false)}>취소</button>
+                <button className="btn btn-primary" onClick={createNewProject}>만들기</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
