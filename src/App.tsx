@@ -1,6 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { generatePdfFromElement } from './pdf/pdfGenerator'
-import { initSupabase, fetchProjects, saveProject, deleteProjectFromDB, ProjectRow } from './lib/supabase'
+import { 
+  initSupabase, fetchProjects, saveProject, deleteProjectFromDB, ProjectRow,
+  signIn, signUp, signOut, getCurrentUser, getSession,
+  getUserRole, getAllUsers, updateUserRole, fetchAllProjects, UserRow
+} from './lib/supabase'
+import { User } from '@supabase/supabase-js'
 import './App.css'
 
 // Supabase 설정 (자동 연결)
@@ -10,7 +15,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 type Mode = 'simple' | 'ebook'
 type PageSize = 'A4' | 'A5' | 'B5'
 type BlockType = 'text' | 'heading' | 'image' | 'list' | 'quote' | 'table' | 'step' | 'summary' | 'bigquote' | 'checklist' | 'highlight' | 'shape'
-type View = 'home' | 'editor'
+type View = 'login' | 'home' | 'editor' | 'admin'
+type UserRole = 'admin' | 'approved' | 'pending'
 
 interface Block {
   id: string
@@ -152,7 +158,21 @@ const generateId = () => `block-${++blockIdCounter}`
 const generateProjectId = () => `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
 export default function App() {
-  const [view, setView] = useState<View>('home')
+  // 인증 관련 상태
+  const [view, setView] = useState<View>('login')
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [userRole, setUserRole] = useState<UserRole>('pending')
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  
+  // 관리자 페이지 상태
+  const [allUsers, setAllUsers] = useState<UserRow[]>([])
+  const [allProjects, setAllProjects] = useState<ProjectRow[]>([])
+  const [adminTab, setAdminTab] = useState<'users' | 'projects'>('users')
+  
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [isLoadingProjects, setIsLoadingProjects] = useState(false)
@@ -240,6 +260,40 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark')
   }, [])
+  
+  // 세션 확인 및 자동 로그인
+  useEffect(() => {
+    const checkSession = async () => {
+      setIsAuthLoading(true)
+      initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY)
+      setIsSupabaseConnected(true)
+      
+      const session = await getSession()
+      if (session?.user) {
+        setCurrentUser(session.user)
+        const role = await getUserRole(session.user.id)
+        setUserRole(role || 'pending')
+        
+        // 저장된 view 상태 복원
+        const savedView = localStorage.getItem('currentView')
+        const savedProjectId = localStorage.getItem('currentProjectId')
+        
+        if (savedView === 'editor' && savedProjectId) {
+          setCurrentProjectId(savedProjectId)
+          setView('editor')
+          // 프로젝트 로드는 아래에서 처리
+        } else {
+          setView('home')
+        }
+        
+        await loadProjectsFromSupabase(session.user.id, role || 'pending')
+      } else {
+        setView('login')
+      }
+      setIsAuthLoading(false)
+    }
+    checkSession()
+  }, [])
 
   // 목차 관리 함수들
   const addChapter = () => {
@@ -294,16 +348,12 @@ export default function App() {
   }
 
   // Supabase 자동 초기화
-  useEffect(() => {
-    initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY)
-    setIsSupabaseConnected(true)
-    loadProjectsFromSupabase()
-  }, [])
-
-  const loadProjectsFromSupabase = async () => {
+  const loadProjectsFromSupabase = async (userId?: string, role?: UserRole) => {
     setIsLoadingProjects(true)
     try {
-      const rows = await fetchProjects()
+      // 승인된 사용자나 관리자만 프로젝트 조회 가능
+      const canView = role === 'admin' || role === 'approved'
+      const rows = canView ? await fetchProjects(userId) : []
       const converted: Project[] = rows.map((row: ProjectRow) => ({
         id: row.id,
         title: row.title,
@@ -440,6 +490,110 @@ export default function App() {
     }
   }, [pages.length, currentPageIndex])
 
+  // ============ 인증 함수들 ============
+  
+  const handleLogin = async () => {
+    if (!authEmail || !authPassword) {
+      setAuthError('이메일과 비밀번호를 입력해주세요')
+      return
+    }
+    
+    setIsAuthLoading(true)
+    setAuthError(null)
+    
+    const { user, error } = await signIn(authEmail, authPassword)
+    
+    if (error) {
+      setAuthError(error)
+      setIsAuthLoading(false)
+      return
+    }
+    
+    if (user) {
+      setCurrentUser(user)
+      const role = await getUserRole(user.id)
+      setUserRole(role || 'pending')
+      setView('home')
+      await loadProjectsFromSupabase(user.id, role || 'pending')
+    }
+    
+    setIsAuthLoading(false)
+    setAuthEmail('')
+    setAuthPassword('')
+  }
+  
+  const handleSignUp = async () => {
+    if (!authEmail || !authPassword) {
+      setAuthError('이메일과 비밀번호를 입력해주세요')
+      return
+    }
+    
+    if (authPassword.length < 6) {
+      setAuthError('비밀번호는 6자 이상이어야 합니다')
+      return
+    }
+    
+    setIsAuthLoading(true)
+    setAuthError(null)
+    
+    const { user, error } = await signUp(authEmail, authPassword)
+    
+    if (error) {
+      setAuthError(error)
+      setIsAuthLoading(false)
+      return
+    }
+    
+    if (user) {
+      setCurrentUser(user)
+      const role = await getUserRole(user.id)
+      setUserRole(role || 'pending')
+      setView('home')
+    }
+    
+    setIsAuthLoading(false)
+    setAuthEmail('')
+    setAuthPassword('')
+  }
+  
+  const handleLogout = async () => {
+    await signOut()
+    setCurrentUser(null)
+    setUserRole('pending')
+    setView('login')
+    setProjects([])
+    localStorage.removeItem('currentView')
+    localStorage.removeItem('currentProjectId')
+  }
+  
+  // 관리자 데이터 로드
+  const loadAdminData = async () => {
+    if (userRole !== 'admin') return
+    
+    const users = await getAllUsers()
+    setAllUsers(users)
+    
+    const projects = await fetchAllProjects()
+    setAllProjects(projects)
+  }
+  
+  const handleUpdateUserRole = async (userId: string, newRole: UserRole) => {
+    const success = await updateUserRole(userId, newRole)
+    if (success) {
+      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u))
+    }
+  }
+  
+  // view 상태 저장
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('currentView', view)
+      if (currentProjectId) {
+        localStorage.setItem('currentProjectId', currentProjectId)
+      }
+    }
+  }, [view, currentProjectId, currentUser])
+
   // 프로젝트 저장 (Supabase)
   const saveCurrentProject = async () => {
     if (!bookTitle.trim() || pages.length === 0) {
@@ -466,11 +620,11 @@ export default function App() {
         pages: pages,
         prompt,
         chapters,
-      })
+      }, currentUser?.id)
       
       if (result) {
         setCurrentProjectId(projectId)
-        await loadProjectsFromSupabase()
+        await loadProjectsFromSupabase(currentUser?.id, userRole)
         setError(null)
       } else {
         setError('저장 실패')
@@ -1969,16 +2123,191 @@ ${tocText}
   // 선택 박스 스타일 - 비활성화됨
   const selectionBoxStyle = null
 
+  // 로딩 화면
+  if (isAuthLoading && view === 'login') {
+    return (
+      <div className="app">
+        <div className="auth-container">
+          <div className="auth-box">
+            <div className="auth-logo">📚 BOOK MAKER</div>
+            <div className="loading-center">
+              <span className="spinner"></span>
+              <p>로딩 중...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 로그인/회원가입 화면
+  if (view === 'login') {
+    return (
+      <div className="app">
+        <div className="auth-container">
+          <div className="auth-box">
+            <div className="auth-logo">📚 BOOK MAKER</div>
+            <h2>{authMode === 'login' ? '로그인' : '회원가입'}</h2>
+            
+            {authError && (
+              <div className="auth-error">
+                <span>⚠️ {authError}</span>
+              </div>
+            )}
+            
+            <div className="auth-form">
+              <input
+                type="email"
+                placeholder="이메일"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (authMode === 'login' ? handleLogin() : handleSignUp())}
+              />
+              <input
+                type="password"
+                placeholder="비밀번호"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (authMode === 'login' ? handleLogin() : handleSignUp())}
+              />
+              
+              <button 
+                className="btn btn-primary btn-large"
+                onClick={authMode === 'login' ? handleLogin : handleSignUp}
+                disabled={isAuthLoading}
+              >
+                {isAuthLoading ? '처리 중...' : (authMode === 'login' ? '로그인' : '가입하기')}
+              </button>
+            </div>
+            
+            <div className="auth-switch">
+              {authMode === 'login' ? (
+                <p>계정이 없으신가요? <button onClick={() => { setAuthMode('signup'); setAuthError(null) }}>회원가입</button></p>
+              ) : (
+                <p>이미 계정이 있으신가요? <button onClick={() => { setAuthMode('login'); setAuthError(null) }}>로그인</button></p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 관리자 화면
+  if (view === 'admin') {
+    return (
+      <div className="app">
+        <header className="header single-bar">
+          <div className="header-left">
+            <button className="btn btn-ghost btn-sm" onClick={() => setView('home')}>← 홈</button>
+            <h1>📚 BOOK MAKER - 관리자</h1>
+          </div>
+          <div className="header-right">
+            <span className="user-email">{currentUser?.email}</span>
+            <button className="btn btn-ghost btn-sm" onClick={handleLogout}>로그아웃</button>
+          </div>
+        </header>
+        
+        <div className="admin-content">
+          <div className="admin-tabs">
+            <button 
+              className={`admin-tab ${adminTab === 'users' ? 'active' : ''}`}
+              onClick={() => { setAdminTab('users'); loadAdminData() }}
+            >
+              👥 회원 관리
+            </button>
+            <button 
+              className={`admin-tab ${adminTab === 'projects' ? 'active' : ''}`}
+              onClick={() => { setAdminTab('projects'); loadAdminData() }}
+            >
+              📁 전체 프로젝트
+            </button>
+          </div>
+          
+          {adminTab === 'users' ? (
+            <div className="admin-section">
+              <h3>회원 목록 ({allUsers.length}명)</h3>
+              <div className="users-table">
+                <div className="table-header">
+                  <span>이메일</span>
+                  <span>권한</span>
+                  <span>가입일</span>
+                  <span>작업</span>
+                </div>
+                {allUsers.map(user => (
+                  <div key={user.id} className="table-row">
+                    <span className="user-email-cell">{user.email}</span>
+                    <span className={`role-badge ${user.role}`}>
+                      {user.role === 'admin' ? '관리자' : user.role === 'approved' ? '승인됨' : '대기중'}
+                    </span>
+                    <span>{new Date(user.created_at).toLocaleDateString()}</span>
+                    <span className="actions">
+                      {user.role !== 'admin' && (
+                        <>
+                          {user.role === 'pending' && (
+                            <button 
+                              className="btn btn-sm btn-success"
+                              onClick={() => handleUpdateUserRole(user.id, 'approved')}
+                            >
+                              승인
+                            </button>
+                          )}
+                          {user.role === 'approved' && (
+                            <button 
+                              className="btn btn-sm btn-warning"
+                              onClick={() => handleUpdateUserRole(user.id, 'pending')}
+                            >
+                              승인취소
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="admin-section">
+              <h3>전체 프로젝트 ({allProjects.length}개)</h3>
+              <div className="admin-projects-grid">
+                {allProjects.map(project => (
+                  <div key={project.id} className="admin-project-card">
+                    <div className="project-info">
+                      <h4>{project.title}</h4>
+                      <p className="project-meta">
+                        <span>📄 {(project.pages as unknown[])?.length || 0}P</span>
+                        <span>📅 {new Date(project.updated_at).toLocaleDateString()}</span>
+                      </p>
+                      <p className="project-owner">👤 {project.user_id || '미지정'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // 홈 화면
   if (view === 'home') {
     return (
       <div className="app">
         <header className="header single-bar">
           <div className="header-left">
-            <h1>📚 AI 전자책 제작</h1>
+            <h1>📚 BOOK MAKER</h1>
           </div>
           <div className="header-right">
+            {userRole === 'admin' && (
+              <button className="btn btn-ghost" onClick={() => { setView('admin'); loadAdminData() }}>
+                ⚙️ 관리자
+              </button>
+            )}
             {isSupabaseConnected && <span className="status-badge">🟢 DB 연결됨</span>}
+            <span className="user-email">{currentUser?.email}</span>
+            <button className="btn btn-ghost btn-sm" onClick={handleLogout}>로그아웃</button>
             <button className="btn btn-primary" onClick={createNewProject}>+ 새 프로젝트</button>
           </div>
         </header>
@@ -1995,6 +2324,14 @@ ${tocText}
             <div className="loading-center">
               <span className="spinner"></span>
               <p>프로젝트 불러오는 중...</p>
+            </div>
+          ) : userRole === 'pending' ? (
+            <div className="empty-home">
+              <div className="empty-icon">⏳</div>
+              <h2>승인 대기 중입니다</h2>
+              <p>관리자의 승인이 완료되면 프로젝트를 열람할 수 있습니다.</p>
+              <p className="pending-notice">프로젝트 생성은 가능하지만, 열람은 승인 후 가능합니다.</p>
+              <button className="btn btn-primary btn-large" onClick={createNewProject}>+ 새 프로젝트 만들기</button>
             </div>
           ) : projects.length === 0 ? (
             <div className="empty-home">
