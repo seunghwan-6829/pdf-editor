@@ -351,9 +351,13 @@ export default function App() {
   const loadProjectsFromSupabase = async (userId?: string, role?: UserRole) => {
     setIsLoadingProjects(true)
     try {
-      // 승인된 사용자나 관리자만 프로젝트 조회 가능
-      const canView = role === 'admin' || role === 'approved'
-      const rows = canView ? await fetchProjects(userId) : []
+      // 관리자는 모든 프로젝트, 승인된 사용자는 본인 프로젝트만
+      let rows: ProjectRow[] = []
+      if (role === 'admin') {
+        rows = await fetchAllProjects()
+      } else if (role === 'approved') {
+        rows = await fetchProjects(userId)
+      }
       const converted: Project[] = rows.map((row: ProjectRow) => ({
         id: row.id,
         title: row.title,
