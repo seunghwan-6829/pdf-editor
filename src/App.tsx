@@ -1144,6 +1144,58 @@ ${tocText}
     let lastWasEmpty = false
     let lastBlockType = ''
     
+    // 테이블 버퍼 (여러 행을 모아서 하나의 테이블로)
+    let tableBuffer: string[][] = []
+    
+    // 테이블 버퍼 플러시 함수
+    const flushTable = () => {
+      if (tableBuffer.length === 0) return
+      
+      const colCount = Math.max(...tableBuffer.map(r => r.length))
+      const rowCount = tableBuffer.length
+      const tableHeight = 32 + (rowCount - 1) * 28 + 16  // 헤더 + 데이터행들 + 패딩
+      const marginTop = 14
+      
+      // 페이지 넘김 체크
+      if (y + marginTop + tableHeight > maxY && currentBlocks.length > 0) {
+        pages.push({ id: `page-${pageIdx}`, blocks: currentBlocks })
+        pageIdx++
+        currentBlocks = []
+        y = startY
+      }
+      
+      // HTML 테이블 생성
+      let tableHtml = `<table style="width:100%;border-collapse:collapse;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;">`
+      tableBuffer.forEach((row, rowIdx) => {
+        const isHeader = rowIdx === 0
+        const bgColor = isHeader ? '#1e40af' : (rowIdx % 2 === 1 ? '#f8fafc' : '#ffffff')
+        const textColor = isHeader ? '#ffffff' : '#1e293b'
+        const fontWeight = isHeader ? '600' : 'normal'
+        
+        tableHtml += `<tr style="background:${bgColor};">`
+        row.forEach((cell, cellIdx) => {
+          const tag = isHeader ? 'th' : 'td'
+          const borderRight = cellIdx < row.length - 1 ? 'border-right:1px solid #cbd5e1;' : ''
+          const borderBottom = rowIdx < tableBuffer.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : ''
+          tableHtml += `<${tag} style="padding:8px 12px;text-align:left;color:${textColor};font-weight:${fontWeight};${borderRight}${borderBottom}">${cell}</${tag}>`
+        })
+        tableHtml += '</tr>'
+      })
+      tableHtml += '</table>'
+      
+      currentBlocks.push({
+        id: generateId(),
+        type: 'table',
+        content: tableHtml,
+        x, y: y + marginTop, width: contentWidth,
+        style: {}
+      })
+      
+      y += marginTop + tableHeight
+      tableBuffer = []
+      lastBlockType = 'table'
+    }
+    
     for (const line of allLines) {
       const trimmed = line.trim()
       
@@ -1185,6 +1237,12 @@ ${tocText}
         lastBlockType = 'divider'
         continue
       }
+      
+      // 테이블이 아닌 블록이 나오면 버퍼 플러시
+      if (!trimmed.startsWith('|') && tableBuffer.length > 0) {
+        flushTable()
+      }
+      
       let block: Block | null = null
       
       if (trimmed.startsWith('# ')) {
@@ -1394,34 +1452,14 @@ ${tocText}
         }
         lastBlockType = 'image'
       } else if (trimmed.startsWith('|')) {
-        // 테이블 행 - 깔끔한 그리드
-        if (trimmed.includes('---') || trimmed.includes(':-')) continue
+        // 테이블 행 - 버퍼에 추가
+        if (trimmed.includes('---') || trimmed.includes(':-')) continue  // 구분선 무시
         
-        const cells = trimmed.split('|').filter(c => c.trim())
+        const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim())
         if (cells.length === 0) continue
         
-        const isHeader = lastBlockType !== 'table'
-        blockHeight = 28
-        marginTop = isHeader ? 14 : 2
-        
-        // 셀들을 탭으로 구분해서 표시
-        const content = cells.map(c => c.trim()).join('  │  ')
-        
-        block = {
-          id: generateId(), type: 'text', 
-          content: isHeader ? `📋 ${content}` : `    ${content}`,
-          x, y: y + marginTop, width: contentWidth,
-          style: { 
-            background: isHeader ? '#1e40af' : (lastBlockType === 'table' ? '#f8fafc' : '#ffffff'),
-            color: isHeader ? '#ffffff' : '#1e293b',
-            padding: '8px 12px',
-            borderRadius: isHeader ? '6px 6px 0 0' : '0',
-            fontWeight: isHeader ? '600' : 'normal',
-            fontSize: 12,
-            borderLeft: isHeader ? 'none' : '3px solid #1e40af',
-          }
-        }
-        lastBlockType = 'table'
+        tableBuffer.push(cells)
+        continue  // 블록 생성하지 않고 계속
       } else {
         blockHeight = 20 + Math.floor(trimmed.length / 45) * 16
         marginTop = lastBlockType === 'text' ? 6 : 10
@@ -1449,6 +1487,9 @@ ${tocText}
       
       if (block) currentBlocks.push(block)
     }
+    
+    // 마지막 테이블 버퍼 플러시
+    flushTable()
     
     if (currentBlocks.length > 0) {
       pages.push({ id: `page-${pageIdx}`, blocks: currentBlocks })
@@ -2651,6 +2692,8 @@ ${tocText}
                       <div className="checklist-item">{block.content}</div>
                     ) : block.type === 'highlight' ? (
                       <div className="highlight-box">{block.content}</div>
+                    ) : block.type === 'table' ? (
+                      <div className="table-container" dangerouslySetInnerHTML={{ __html: block.content }} />
                     ) : block.type === 'shape' ? (
                       <>
                         <div 
@@ -2744,6 +2787,8 @@ ${tocText}
                       <div className="checklist-item">{block.content}</div>
                     ) : block.type === 'highlight' ? (
                       <div className="highlight-box">{block.content}</div>
+                    ) : block.type === 'table' ? (
+                      <div className="table-container" dangerouslySetInnerHTML={{ __html: block.content }} />
                     ) : block.type === 'shape' ? (
                       <div 
                         className="shape-box"

@@ -1756,6 +1756,18 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* 테이블 컨테이너 */
+.table-container {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.table-container table {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 /* 반응형 */
 @media (max-width: 900px) {
   .main.compact {
