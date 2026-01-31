@@ -1416,12 +1416,10 @@ ${tocText}
           x, y: y + marginTop, width: contentWidth,
           style: { 
             background: isHeader ? '#f1f5f9' : '#ffffff', 
-            border: '1px solid #e2e8f0',
-            borderTop: isHeader ? '1px solid #e2e8f0' : 'none',
+            border: isHeader ? '1px solid #e2e8f0' : '1px solid #e2e8f0',
             padding: '0',
             fontWeight: isHeader ? '600' : 'normal',
             fontSize: isHeader ? 13 : 12,
-            display: 'flex',
           }
         }
         lastBlockType = 'table'
