@@ -1394,32 +1394,31 @@ ${tocText}
         }
         lastBlockType = 'image'
       } else if (trimmed.startsWith('|')) {
-        // 테이블 행 - 실제 그리드 테이블
-        if (trimmed.includes('---') || trimmed.includes(':-')) continue  // 구분선 무시
+        // 테이블 행 - 깔끔한 그리드
+        if (trimmed.includes('---') || trimmed.includes(':-')) continue
         
         const cells = trimmed.split('|').filter(c => c.trim())
         if (cells.length === 0) continue
         
         const isHeader = lastBlockType !== 'table'
-        const cellCount = cells.length
-        blockHeight = isHeader ? 32 : 28
-        marginTop = isHeader ? 14 : 0
+        blockHeight = 28
+        marginTop = isHeader ? 14 : 2
         
-        // HTML 테이블 행 생성
-        const cellsHtml = cells.map(c => c.trim()).map((cell, i) => 
-          `<span style="flex:1;padding:6px 10px;${i < cellCount - 1 ? 'border-right:1px solid #e2e8f0;' : ''}">${cell}</span>`
-        ).join('')
+        // 셀들을 탭으로 구분해서 표시
+        const content = cells.map(c => c.trim()).join('  │  ')
         
         block = {
           id: generateId(), type: 'text', 
-          content: cellsHtml,
+          content: isHeader ? `📋 ${content}` : `    ${content}`,
           x, y: y + marginTop, width: contentWidth,
           style: { 
-            background: isHeader ? '#f1f5f9' : '#ffffff', 
-            border: isHeader ? '1px solid #e2e8f0' : '1px solid #e2e8f0',
-            padding: '0',
+            background: isHeader ? '#1e40af' : (lastBlockType === 'table' ? '#f8fafc' : '#ffffff'),
+            color: isHeader ? '#ffffff' : '#1e293b',
+            padding: '8px 12px',
+            borderRadius: isHeader ? '6px 6px 0 0' : '0',
             fontWeight: isHeader ? '600' : 'normal',
-            fontSize: isHeader ? 13 : 12,
+            fontSize: 12,
+            borderLeft: isHeader ? 'none' : '3px solid #1e40af',
           }
         }
         lastBlockType = 'table'
