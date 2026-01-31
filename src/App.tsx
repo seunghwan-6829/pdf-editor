@@ -1394,19 +1394,35 @@ ${tocText}
         }
         lastBlockType = 'image'
       } else if (trimmed.startsWith('|')) {
-        // 테이블 행 -> 리스트 형태로 변환
-        if (trimmed.includes('---')) continue
+        // 테이블 행 - 실제 그리드 테이블
+        if (trimmed.includes('---') || trimmed.includes(':-')) continue  // 구분선 무시
         
         const cells = trimmed.split('|').filter(c => c.trim())
         if (cells.length === 0) continue
         
-        const content = cells.map(c => c.trim()).join(' • ')
-        blockHeight = 20
-        marginTop = lastBlockType === 'table' ? 4 : 10
+        const isHeader = lastBlockType !== 'table'
+        const cellCount = cells.length
+        blockHeight = isHeader ? 32 : 28
+        marginTop = isHeader ? 14 : 0
+        
+        // HTML 테이블 행 생성
+        const cellsHtml = cells.map(c => c.trim()).map((cell, i) => 
+          `<span style="flex:1;padding:6px 10px;${i < cellCount - 1 ? 'border-right:1px solid #e2e8f0;' : ''}">${cell}</span>`
+        ).join('')
+        
         block = {
-          id: generateId(), type: 'list', content: `📌 ${content}`,
+          id: generateId(), type: 'text', 
+          content: cellsHtml,
           x, y: y + marginTop, width: contentWidth,
-          style: { background: '#f8fafc', padding: '4px 8px', borderRadius: '4px' }
+          style: { 
+            background: isHeader ? '#f1f5f9' : '#ffffff', 
+            border: '1px solid #e2e8f0',
+            borderTop: isHeader ? '1px solid #e2e8f0' : 'none',
+            padding: '0',
+            fontWeight: isHeader ? '600' : 'normal',
+            fontSize: isHeader ? 13 : 12,
+            display: 'flex',
+          }
         }
         lastBlockType = 'table'
       } else {
