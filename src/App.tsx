@@ -1151,7 +1151,6 @@ ${tocText}
     const flushTable = () => {
       if (tableBuffer.length === 0) return
       
-      const colCount = Math.max(...tableBuffer.map(r => r.length))
       const rowCount = tableBuffer.length
       const tableHeight = 32 + (rowCount - 1) * 28 + 16  // 헤더 + 데이터행들 + 패딩
       const marginTop = 14
