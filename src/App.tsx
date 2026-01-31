@@ -661,9 +661,10 @@ export default function App() {
 - [x] 체크리스트 형태 (할 일 목록, 준비물 등)
 - [HIGHLIGHT] 특별히 강조할 핵심 문장
 - [IMAGE: 설명] 이미지 영역 (3-4개)
+- --- 구분선 (섹션 구분 시)
 - 목록(-) 활용
 
-【금지】코드블록, 표, 구분선
+【금지】코드블록
 
 주제: ${prompt}
 
@@ -687,9 +688,10 @@ export default function App() {
 - [x] 체크리스트 형태
 - [HIGHLIGHT] 특별히 강조할 핵심 문장
 - [IMAGE: 설명] 이미지 영역 (5-7개)
+- --- 구분선 (섹션 구분 시)
 - 목록(-) 활용
 
-【금지】코드블록, 표, 구분선
+【금지】코드블록
 
 주제: ${prompt}
 
@@ -855,8 +857,8 @@ ${aiEditInstruction}
 【규칙】
 - 위 지시사항에 따라 내용을 수정해주세요
 - 기존 형식(마크다운)을 유지하세요
-- > 콜아웃, [STEP N], [SUMMARY], [QUOTE], [x], [HIGHLIGHT], [IMAGE: 설명] 등 레이아웃 요소 활용
-- 코드블록, 표, 구분선 금지
+- > 콜아웃, [STEP N], [SUMMARY], [QUOTE], [x], [HIGHLIGHT], [IMAGE: 설명], --- 등 레이아웃 요소 활용
+- 코드블록 금지
 
 수정된 내용만 출력해주세요:`
 
@@ -934,9 +936,9 @@ ${currentContent.slice(0, 500)}...
 【작성 규칙】
 - 같은 주제로 더 풍부하고 새로운 관점으로 작성
 - 5-8개 문단으로 상세히 작성
-- > 콜아웃, [STEP N], [SUMMARY], [QUOTE], [x], [HIGHLIGHT] 등 다양한 레이아웃 요소 활용
+- > 콜아웃, [STEP N], [SUMMARY], [QUOTE], [x], [HIGHLIGHT], --- 등 다양한 레이아웃 요소 활용
 - [IMAGE: 설명] 형태로 이미지 위치 2-3개 표시
-- 코드블록, 표, 구분선 금지
+- 코드블록 금지
 
 새롭게 작성된 내용만 출력:`
 
@@ -1050,10 +1052,11 @@ ${tocText}
 - [x] 체크리스트: 할 일, 준비물, 점검 항목
 - [HIGHLIGHT] 하이라이트: 특별히 강조할 핵심
 - [IMAGE: 설명] 이미지 영역 (챕터당 3-5개)
+- --- 구분선: 섹션 구분
 - 목록(-): 세부 정보 정리
 
 【절대 금지】
-- 코드 블록, 구분선, 표 사용 금지
+- 코드 블록 사용 금지
 
 【분량 기준】
 - 각 소제목(###) 아래 4-6개 문단
@@ -1144,7 +1147,33 @@ ${tocText}
     for (const line of allLines) {
       const trimmed = line.trim()
       
-      if (trimmed === '---' || trimmed === '***' || trimmed === '___') continue
+      // 구분선 디자인
+      if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+        blockHeight = 20
+        marginTop = 16
+        block = {
+          id: generateId(), type: 'divider', content: '',
+          x: x + contentWidth * 0.1, y: y + marginTop, width: contentWidth * 0.8,
+          style: {
+            background: 'linear-gradient(90deg, transparent, #d1d5db, transparent)',
+            height: '2px',
+            borderRadius: '1px',
+          }
+        }
+        lastBlockType = 'divider'
+        
+        if (y + marginTop + blockHeight > maxY) {
+          pages.push({ id: generateId(), blocks: currentBlocks })
+          currentBlocks = []
+          y = startY
+          pageIdx++
+        }
+        if (block) {
+          currentBlocks.push(block)
+          y += marginTop + blockHeight
+        }
+        continue
+      }
       
       if (!trimmed) {
         if (!lastWasEmpty) {
