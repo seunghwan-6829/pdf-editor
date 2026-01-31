@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { generatePdfFromElement } from './pdf/pdfGenerator'
 import { 
   initSupabase, fetchProjects, saveProject, deleteProjectFromDB, ProjectRow,
-  signIn, signUp, signOut, getCurrentUser, getSession,
+  signIn, signUp, signOut, getSession,
   getUserRole, getAllUsers, updateUserRole, fetchAllProjects, UserRow
 } from './lib/supabase'
 import { User } from '@supabase/supabase-js'
