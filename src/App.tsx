@@ -1147,34 +1147,6 @@ ${tocText}
     for (const line of allLines) {
       const trimmed = line.trim()
       
-      // 구분선 디자인
-      if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
-        blockHeight = 20
-        marginTop = 16
-        block = {
-          id: generateId(), type: 'divider', content: '',
-          x: x + contentWidth * 0.1, y: y + marginTop, width: contentWidth * 0.8,
-          style: {
-            background: 'linear-gradient(90deg, transparent, #d1d5db, transparent)',
-            height: '2px',
-            borderRadius: '1px',
-          }
-        }
-        lastBlockType = 'divider'
-        
-        if (y + marginTop + blockHeight > maxY) {
-          pages.push({ id: generateId(), blocks: currentBlocks })
-          currentBlocks = []
-          y = startY
-          pageIdx++
-        }
-        if (block) {
-          currentBlocks.push(block)
-          y += marginTop + blockHeight
-        }
-        continue
-      }
-      
       if (!trimmed) {
         if (!lastWasEmpty) {
           // 문단 끝이면 더 큰 간격
@@ -1187,6 +1159,32 @@ ${tocText}
       
       let blockHeight = 22
       let marginTop = 6
+      
+      // 구분선 디자인
+      if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+        blockHeight = 20
+        marginTop = 16
+        
+        if (y + marginTop + blockHeight > maxY) {
+          pages.push({ id: generateId(), blocks: currentBlocks })
+          currentBlocks = []
+          y = startY
+          pageIdx++
+        }
+        
+        currentBlocks.push({
+          id: generateId(), type: 'text', content: '',
+          x: x + contentWidth * 0.1, y: y + marginTop, width: contentWidth * 0.8,
+          style: {
+            background: 'linear-gradient(90deg, transparent, #d1d5db, transparent)',
+            borderRadius: '1px',
+            padding: '1px 0',
+          }
+        })
+        y += marginTop + blockHeight
+        lastBlockType = 'divider'
+        continue
+      }
       let block: Block | null = null
       
       if (trimmed.startsWith('# ')) {
