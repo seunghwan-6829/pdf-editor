@@ -41,15 +41,15 @@ export const signUp = async (email: string, password: string): Promise<{ user: U
   
   if (error) return { user: null, error: error.message }
   
-  // 회원가입 성공 시 users 테이블에 추가
+  // 회원가입 성공 시 users 테이블에 추가 (insert로 변경)
   if (data.user) {
     const role = email === ADMIN_EMAIL ? 'admin' : 'pending'
-    await supabase.from('users').upsert({
+    await supabase.from('users').insert({
       id: data.user.id,
       email: email,
       role: role,
       created_at: new Date().toISOString()
-    }, { onConflict: 'id' })
+    })
   }
   
   return { user: data.user, error: null }
@@ -62,15 +62,24 @@ export const signIn = async (email: string, password: string): Promise<{ user: U
   
   if (error) return { user: null, error: error.message }
   
-  // 로그인 시 users 테이블에 없으면 추가
+  // 로그인 시 users 테이블에 없을 때만 추가 (기존 role 유지)
   if (data.user) {
-    const role = email === ADMIN_EMAIL ? 'admin' : 'pending'
-    await supabase.from('users').upsert({
-      id: data.user.id,
-      email: email,
-      role: role,
-      created_at: new Date().toISOString()
-    }, { onConflict: 'id' })
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', data.user.id)
+      .single()
+    
+    // 유저가 없을 때만 새로 추가
+    if (!existingUser) {
+      const role = email === ADMIN_EMAIL ? 'admin' : 'pending'
+      await supabase.from('users').insert({
+        id: data.user.id,
+        email: email,
+        role: role,
+        created_at: new Date().toISOString()
+      })
+    }
   }
   
   return { user: data.user, error: null }
