@@ -185,8 +185,8 @@ export const fetchAllProjects = async (): Promise<ProjectRow[]> => {
   return data || []
 }
 
-export const saveProject = async (project: Omit<ProjectRow, 'created_at'>, userId?: string): Promise<ProjectRow | null> => {
-  if (!supabase) return null
+export const saveProject = async (project: Omit<ProjectRow, 'created_at'>, userId?: string): Promise<{ data: ProjectRow | null; error: string | null }> => {
+  if (!supabase) return { data: null, error: 'Supabase not initialized' }
   
   const { data, error } = await supabase
     .from('projects')
@@ -206,9 +206,9 @@ export const saveProject = async (project: Omit<ProjectRow, 'created_at'>, userI
   
   if (error) {
     console.error('Save error:', error)
-    return null
+    return { data: null, error: error.message }
   }
-  return data
+  return { data, error: null }
 }
 
 export const deleteProjectFromDB = async (id: string): Promise<boolean> => {

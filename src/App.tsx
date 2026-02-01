@@ -622,7 +622,7 @@ export default function App() {
     const projectId = currentProjectId || generateProjectId()
     
     try {
-      const result = await saveProject({
+      const { data: result, error: saveError } = await saveProject({
         id: projectId,
         title: bookTitle,
         updated_at: now,
@@ -638,10 +638,10 @@ export default function App() {
         await loadProjectsFromSupabase(currentUser?.id, userRole)
         setError(null)
       } else {
-        setError('저장 실패')
+        setError(`저장 실패: ${saveError || '알 수 없는 오류'}`)
       }
     } catch (e) {
-      setError('저장 중 오류 발생')
+      setError(`저장 중 오류 발생: ${e}`)
     } finally {
       setIsSaving(false)
     }

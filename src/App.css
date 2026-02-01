@@ -1981,11 +1981,6 @@ body {
   color: var(--warning);
 }
 
-.role-badge.viewer {
-  background: rgba(59, 130, 246, 0.2);
-  color: #3b82f6;
-}
-
 .actions {
   display: flex;
   gap: 0.5rem;
@@ -2007,15 +2002,6 @@ body {
 
 .btn-warning:hover {
   background: #d97706;
-}
-
-.btn-info {
-  background: #3b82f6;
-  color: white;
-}
-
-.btn-info:hover {
-  background: #2563eb;
 }
 
 /* 관리자 프로젝트 그리드 */
