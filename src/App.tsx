@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { generatePdfFromElement } from './pdf/pdfGenerator'
 import { 
-  initSupabase, fetchProjects, saveProject, deleteProjectFromDB, ProjectRow,
+  initSupabase, saveProject, deleteProjectFromDB, ProjectRow,
   signIn, signUp, signOut, getSession,
   getUserRole, getAllUsers, updateUserRole, fetchAllProjects, UserRow
 } from './lib/supabase'
@@ -355,7 +355,7 @@ export default function App() {
   }
 
   // Supabase 자동 초기화
-  const loadProjectsFromSupabase = async (userId?: string, role?: UserRole) => {
+  const loadProjectsFromSupabase = async (_userId?: string, role?: UserRole) => {
     setIsLoadingProjects(true)
     try {
       // 관리자/승인된 사용자는 모든 프로젝트 열람 가능
