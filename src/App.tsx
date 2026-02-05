@@ -3282,7 +3282,7 @@ ${tocText}
                     ) : block.type === 'list' ? (
                       <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
                     ) : (
-                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
+                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, `<strong style="color:${accentColor}">$1</strong>`) }} />
                     )}
                     {block.locked && <span className="lock-indicator">🔒</span>}
                   </div>
@@ -3368,7 +3368,7 @@ ${tocText}
                     ) : block.type === 'list' ? (
                       <div className="list-content">{block.content.startsWith('-') ? '• ' : ''}{block.content.replace(/^-\s*/, '').replace(/^\d+\.\s*/, '')}</div>
                     ) : (
-                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong style="color:#dc2626">$1</strong>') }} />
+                      <span dangerouslySetInnerHTML={{ __html: block.content.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, `<strong style="color:${accentColor}">$1</strong>`) }} />
                     )}
                   </div>
                 ))}
