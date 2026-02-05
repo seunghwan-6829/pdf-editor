@@ -87,44 +87,41 @@ const getPreviewSize = (size: PageSize) => {
   return { width, height: width * ratio }
 }
 
-// 챕터 헤딩 스타일 (프리미엄 레이아웃)
-const CHAPTER_STYLES = [
-  // 스타일 1: 클래식 네이비
-  { background: 'linear-gradient(135deg, #1e3a5f, #2d5a87)', color: '#fff', borderRadius: '6px' },
-  // 스타일 2: 모던 그레이 + 골드 악센트
-  { background: '#f8f9fa', color: '#2d3748', borderLeft: '5px solid #d4af37', borderRadius: '0' },
+// 동적 스타일 생성 함수들
+const getChapterStyles = (mainColor: string) => [
+  // 스타일 1: 그라데이션 배경
+  { background: `linear-gradient(135deg, ${mainColor}, ${lighten(mainColor, 25)})`, color: getContrastColor(mainColor), borderRadius: '6px' },
+  // 스타일 2: 모던 + 사이드 악센트
+  { background: '#f8f9fa', color: '#2d3748', borderLeft: `5px solid ${mainColor}`, borderRadius: '0' },
   // 스타일 3: 미니멀 언더라인
-  { background: 'transparent', color: '#1a202c', borderBottom: '2px solid #2d3748', borderRadius: '0' },
-  // 스타일 4: 소프트 그라데이션
-  { background: 'linear-gradient(135deg, #e8f4f8, #d1e8f0)', color: '#1e3a5f', borderRadius: '6px' },
+  { background: 'transparent', color: '#1a202c', borderBottom: `2px solid ${mainColor}`, borderRadius: '0' },
+  // 스타일 4: 소프트 배경
+  { background: lighten(mainColor, 85), color: darken(mainColor, 10), borderRadius: '6px' },
 ]
 
-// 콜아웃 스타일 (다양한 베리에이션)
-const CALLOUT_STYLES: Record<string, { bg: string; border: string; color: string; icon: string }> = {
+const getCalloutStyles = (accentColor: string): Record<string, { bg: string; border: string; color: string; icon: string }> => ({
   tip: { bg: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '#d97706', color: '#92400e', icon: '💡' },
-  important: { bg: 'linear-gradient(135deg, #fef2f2, #fecaca)', border: '#dc2626', color: '#991b1b', icon: '❗' },
+  important: { bg: `linear-gradient(135deg, ${lighten(accentColor, 90)}, ${lighten(accentColor, 80)})`, border: accentColor, color: darken(accentColor, 20), icon: '❗' },
   example: { bg: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '#16a34a', color: '#166534', icon: '📌' },
   data: { bg: 'linear-gradient(135deg, #eff6ff, #dbeafe)', border: '#2563eb', color: '#1e40af', icon: '📊' },
   note: { bg: 'linear-gradient(135deg, #faf5ff, #f3e8ff)', border: '#9333ea', color: '#7c3aed', icon: '📝' },
-}
+})
 
-// 스텝 박스 스타일
-const STEP_STYLES = [
-  { numBg: '#3b82f6', numColor: '#fff', bg: '#eff6ff', border: '#3b82f6' },
-  { numBg: '#8b5cf6', numColor: '#fff', bg: '#f5f3ff', border: '#8b5cf6' },
-  { numBg: '#ec4899', numColor: '#fff', bg: '#fdf2f8', border: '#ec4899' },
-  { numBg: '#14b8a6', numColor: '#fff', bg: '#f0fdfa', border: '#14b8a6' },
+const getStepStyles = (mainColor: string) => [
+  { numBg: mainColor, numColor: getContrastColor(mainColor), bg: lighten(mainColor, 90), border: mainColor },
+  { numBg: lighten(mainColor, 20), numColor: getContrastColor(lighten(mainColor, 20)), bg: lighten(mainColor, 92), border: lighten(mainColor, 20) },
+  { numBg: darken(mainColor, 10), numColor: getContrastColor(darken(mainColor, 10)), bg: lighten(mainColor, 88), border: darken(mainColor, 10) },
+  { numBg: mainColor, numColor: getContrastColor(mainColor), bg: lighten(mainColor, 85), border: mainColor },
 ]
 
-// 핵심 요약 박스 스타일
-const SUMMARY_BOX_STYLE = {
-  bg: 'linear-gradient(135deg, #1e293b, #334155)',
+const getSummaryBoxStyle = (mainColor: string) => ({
+  bg: `linear-gradient(135deg, ${darken(mainColor, 30)}, ${darken(mainColor, 10)})`,
   color: '#f8fafc',
-  border: '#3b82f6',
+  border: mainColor,
   icon: '🎯'
-}
+})
 
-// 인용구 스타일
+// 인용구 스타일 (고정)
 const QUOTE_BOX_STYLE = {
   bg: '#f8fafc',
   color: '#475569',
@@ -132,26 +129,94 @@ const QUOTE_BOX_STYLE = {
   quoteMark: '"'
 }
 
-// 체크리스트 스타일
-const CHECKLIST_STYLE = {
-  bg: '#f0fdf4',
-  checkColor: '#16a34a',
-  textColor: '#166534'
-}
+const getChecklistStyle = (accentColor: string) => ({
+  bg: lighten(accentColor, 92),
+  checkColor: accentColor,
+  textColor: darken(accentColor, 20)
+})
 
-// 하이라이트 박스 스타일
-const HIGHLIGHT_STYLES = [
-  { bg: 'linear-gradient(90deg, #fef08a, #fde047)', color: '#713f12', icon: '⭐' },
-  { bg: 'linear-gradient(90deg, #bbf7d0, #86efac)', color: '#166534', icon: '✨' },
-  { bg: 'linear-gradient(90deg, #bfdbfe, #93c5fd)', color: '#1e40af', icon: '🔥' },
+const getHighlightStyles = (accentColor: string) => [
+  { bg: `linear-gradient(90deg, ${lighten(accentColor, 70)}, ${lighten(accentColor, 60)})`, color: darken(accentColor, 30), icon: '⭐' },
+  { bg: `linear-gradient(90deg, ${lighten(accentColor, 75)}, ${lighten(accentColor, 65)})`, color: darken(accentColor, 25), icon: '✨' },
+  { bg: `linear-gradient(90deg, ${lighten(accentColor, 80)}, ${lighten(accentColor, 70)})`, color: darken(accentColor, 20), icon: '🔥' },
 ]
 
-// 소제목 스타일
-const SUBHEADING_STYLES = [
-  { color: '#be123c', borderLeft: '3px solid #be123c' },
-  { color: '#0369a1', borderLeft: '3px solid #0369a1' },
-  { color: '#7c3aed', borderLeft: '3px solid #7c3aed' },
-  { color: '#059669', borderLeft: '3px solid #059669' },
+const getSubheadingStyles = (accentColor: string) => [
+  { color: accentColor, borderLeft: `3px solid ${accentColor}` },
+  { color: darken(accentColor, 10), borderLeft: `3px solid ${darken(accentColor, 10)}` },
+  { color: lighten(accentColor, 10), borderLeft: `3px solid ${lighten(accentColor, 10)}` },
+  { color: accentColor, borderLeft: `3px solid ${accentColor}` },
+]
+
+// 색상 유틸리티 함수
+const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 }
+}
+
+const rgbToHex = (r: number, g: number, b: number): string => {
+  return '#' + [r, g, b].map(x => {
+    const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16)
+    return hex.length === 1 ? '0' + hex : hex
+  }).join('')
+}
+
+const getLuminance = (hex: string): number => {
+  const { r, g, b } = hexToRgb(hex)
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c = c / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs
+}
+
+const getContrastColor = (bgColor: string): string => {
+  return getLuminance(bgColor) > 0.4 ? '#1a202c' : '#ffffff'
+}
+
+const lighten = (hex: string, percent: number): string => {
+  const { r, g, b } = hexToRgb(hex)
+  return rgbToHex(
+    r + (255 - r) * (percent / 100),
+    g + (255 - g) * (percent / 100),
+    b + (255 - b) * (percent / 100)
+  )
+}
+
+const darken = (hex: string, percent: number): string => {
+  const { r, g, b } = hexToRgb(hex)
+  return rgbToHex(
+    r * (1 - percent / 100),
+    g * (1 - percent / 100),
+    b * (1 - percent / 100)
+  )
+}
+
+// 프리셋 컬러 팔레트
+const PRESET_MAIN_COLORS = [
+  { color: '#1e3a5f', name: '네이비' },
+  { color: '#166534', name: '포레스트 그린' },
+  { color: '#7c3aed', name: '로열 퍼플' },
+  { color: '#0369a1', name: '오션 블루' },
+  { color: '#374151', name: '차콜' },
+  { color: '#b45309', name: '골드' },
+  { color: '#0d9488', name: '틸' },
+  { color: '#4338ca', name: '인디고' },
+]
+
+const PRESET_ACCENT_COLORS = [
+  { color: '#be123c', name: '로즈' },
+  { color: '#dc2626', name: '레드' },
+  { color: '#ea580c', name: '오렌지' },
+  { color: '#ca8a04', name: '옐로우' },
+  { color: '#16a34a', name: '그린' },
+  { color: '#0891b2', name: '시안' },
+  { color: '#7c3aed', name: '퍼플' },
+  { color: '#c026d3', name: '핑크' },
 ]
 
 let blockIdCounter = 0
@@ -212,6 +277,10 @@ export default function App() {
   
   // 톤앤무드 설정
   const [bookTone, setBookTone] = useState('professional')  // professional, friendly, academic, casual
+  
+  // 컬러 설정
+  const [mainColor, setMainColor] = useState('#1e3a5f')  // 메인 컬러 (기본: 네이비)
+  const [accentColor, setAccentColor] = useState('#be123c')  // 강조 컬러 (기본: 로즈)
   
   // PDF 내보내기 페이지 범위
   const [exportRange, setExportRange] = useState({ start: 1, end: 1 })
@@ -1330,7 +1399,20 @@ ${tocText}
   }
 
   // Markdown → 페이지/블록 변환 (디자인 다양화)
-  const parseMarkdownToPages = (content: string, size: { width: number; height: number }): Page[] => {
+  const parseMarkdownToPages = (content: string, size: { width: number; height: number }, colors?: { main: string; accent: string }): Page[] => {
+    // 현재 선택된 컬러 사용
+    const currentMainColor = colors?.main || mainColor
+    const currentAccentColor = colors?.accent || accentColor
+    
+    // 동적 스타일 생성
+    const CHAPTER_STYLES = getChapterStyles(currentMainColor)
+    const CALLOUT_STYLES = getCalloutStyles(currentAccentColor)
+    const STEP_STYLES = getStepStyles(currentMainColor)
+    const SUMMARY_STYLE = getSummaryBoxStyle(currentMainColor)
+    const CHECKLIST_STYLE = getChecklistStyle(currentAccentColor)
+    const HIGHLIGHT_STYLES = getHighlightStyles(currentAccentColor)
+    const SUBHEADING_STYLES = getSubheadingStyles(currentAccentColor)
+    
     // 스타일 인덱스
     let chapterIdx = 0
     let subheadingIdx = 0
@@ -1527,12 +1609,12 @@ ${tocText}
         marginTop = 16
         
         block = {
-          id: generateId(), type: 'summary', content: `${SUMMARY_BOX_STYLE.icon} 핵심 요약|${content}`,
+          id: generateId(), type: 'summary', content: `${SUMMARY_STYLE.icon} 핵심 요약|${content}`,
           x, y: y + marginTop, width: contentWidth,
           style: {
-            background: SUMMARY_BOX_STYLE.bg,
-            color: SUMMARY_BOX_STYLE.color,
-            borderLeft: `5px solid ${SUMMARY_BOX_STYLE.border}`,
+            background: SUMMARY_STYLE.bg,
+            color: SUMMARY_STYLE.color,
+            borderLeft: `5px solid ${SUMMARY_STYLE.border}`,
             borderRadius: '8px',
             padding: '14px 16px',
           }
@@ -2848,6 +2930,55 @@ ${tocText}
                   <option value="inspiring">✨ 영감을 주는/동기부여</option>
                   <option value="storytelling">📖 스토리텔링/서사적</option>
                 </select>
+              </div>
+              
+              {/* 컬러 설정 */}
+              <div className="section-block">
+                <h3 className="section-label">🎨 메인 컬러</h3>
+                <div className="color-palette">
+                  {PRESET_MAIN_COLORS.map(({ color, name }) => (
+                    <button
+                      key={color}
+                      className={`color-swatch ${mainColor === color ? 'active' : ''}`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setMainColor(color)}
+                      title={name}
+                    />
+                  ))}
+                  <label className="color-picker-wrapper" title="커스텀 컬러">
+                    <input
+                      type="color"
+                      value={mainColor}
+                      onChange={(e) => setMainColor(e.target.value)}
+                      className="color-picker-input"
+                    />
+                    <span className="color-picker-icon">+</span>
+                  </label>
+                </div>
+              </div>
+              
+              <div className="section-block">
+                <h3 className="section-label">✨ 강조 컬러</h3>
+                <div className="color-palette">
+                  {PRESET_ACCENT_COLORS.map(({ color, name }) => (
+                    <button
+                      key={color}
+                      className={`color-swatch ${accentColor === color ? 'active' : ''}`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setAccentColor(color)}
+                      title={name}
+                    />
+                  ))}
+                  <label className="color-picker-wrapper" title="커스텀 컬러">
+                    <input
+                      type="color"
+                      value={accentColor}
+                      onChange={(e) => setAccentColor(e.target.value)}
+                      className="color-picker-input"
+                    />
+                    <span className="color-picker-icon">+</span>
+                  </label>
+                </div>
               </div>
               
               <div className="section-block toc-section">
