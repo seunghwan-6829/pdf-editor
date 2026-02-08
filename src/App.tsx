@@ -165,49 +165,6 @@ const rgbToHex = (r: number, g: number, b: number): string => {
   }).join('')
 }
 
-// 메인 컬러에서 강조 컬러 자동 생성 (보색 기반)
-const getAccentFromMain = (mainHex: string): string => {
-  const rgb = hexToRgb(mainHex)
-  // RGB to HSL
-  const r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b)
-  let h = 0, s = 0
-  const l = (max + min) / 2
-  
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
-      case g: h = ((b - r) / d + 2) / 6; break
-      case b: h = ((r - g) / d + 4) / 6; break
-    }
-  }
-  
-  // 보색: Hue를 180도 회전 + 채도 높이기
-  const newH = (h + 0.5) % 1
-  const newS = Math.min(1, s * 1.3 + 0.2)  // 채도 높이기
-  const newL = Math.max(0.3, Math.min(0.6, l))  // 밝기 조절
-  
-  // HSL to RGB
-  const hue2rgb = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1
-    if (t > 1) t -= 1
-    if (t < 1/6) return p + (q - p) * 6 * t
-    if (t < 1/2) return q
-    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
-    return p
-  }
-  
-  const q = newL < 0.5 ? newL * (1 + newS) : newL + newS - newL * newS
-  const p = 2 * newL - q
-  const newR = Math.round(hue2rgb(p, q, newH + 1/3) * 255)
-  const newG = Math.round(hue2rgb(p, q, newH) * 255)
-  const newB = Math.round(hue2rgb(p, q, newH - 1/3) * 255)
-  
-  return rgbToHex(newR, newG, newB)
-}
-
 const getLuminance = (hex: string): number => {
   const { r, g, b } = hexToRgb(hex)
   const [rs, gs, bs] = [r, g, b].map(c => {
@@ -376,9 +333,9 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', 'dark')
   }, [])
   
-  // 메인 컬러 변경 시 강조 컬러 자동 설정
+  // 메인 컬러 변경 시 강조 컬러도 동일하게 설정
   useEffect(() => {
-    setAccentColor(getAccentFromMain(mainColor))
+    setAccentColor(mainColor)
   }, [mainColor])
   
   // 세션 확인 및 자동 로그인
