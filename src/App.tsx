@@ -491,27 +491,40 @@ export default function App() {
     setShowSerperKey(false)
   }
   
-  // Serper API로 웹 검색
-  const searchWithSerper = async (query: string): Promise<string> => {
+  // Serper API로 웹 검색 (최신 순)
+  const searchWithSerper = async (query: string, recentOnly: boolean = true): Promise<string> => {
     try {
+      const searchParams: { q: string; gl: string; hl: string; num: number; tbs?: string } = { 
+        q: query + (recentOnly ? ' 2024 2025' : ''),  // 최신 연도 키워드 추가
+        gl: 'kr', 
+        hl: 'ko',
+        num: 10  // 더 많은 결과 가져오기
+      }
+      
+      // 최신 정보만 검색 (최근 1년)
+      if (recentOnly) {
+        searchParams.tbs = 'qdr:y'  // 최근 1년 내 결과만
+      }
+      
       const response = await fetch('https://google.serper.dev/search', {
         method: 'POST',
         headers: {
           'X-API-KEY': serperApiKey,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ q: query, gl: 'kr', hl: 'ko' })
+        body: JSON.stringify(searchParams)
       })
       const data = await response.json()
       
-      // 검색 결과 요약
+      // 검색 결과 요약 (날짜 정보 포함)
       let summary = ''
       if (data.knowledgeGraph) {
         summary += `[지식그래프] ${data.knowledgeGraph.title || ''}: ${data.knowledgeGraph.description || ''}\n`
       }
       if (data.organic) {
-        data.organic.slice(0, 3).forEach((item: { title: string; snippet: string }) => {
-          summary += `- ${item.title}: ${item.snippet}\n`
+        data.organic.slice(0, 5).forEach((item: { title: string; snippet: string; date?: string }) => {
+          const dateInfo = item.date ? `[${item.date}]` : ''
+          summary += `${dateInfo} ${item.title}: ${item.snippet}\n`
         })
       }
       return summary || '검색 결과 없음'
@@ -1234,11 +1247,11 @@ ${verifyPrompt}`
             chapterName: `🔍 "${searchTopic}" 자료 수집 중...` 
           })
           
-          // 3개의 다른 검색어로 복합 검색
+          // 3개의 다른 검색어로 최신 정보 복합 검색
           const searchQueries = [
-            `${searchTopic} 정의 개념`,
-            `${searchTopic} 통계 데이터 수치`,
-            `${searchTopic} 사례 예시 연구`
+            `${searchTopic} 최신 정의 개념 2024 2025`,
+            `${searchTopic} 최신 통계 데이터 수치 2024`,
+            `${searchTopic} 최신 사례 예시 트렌드 2024 2025`
           ]
           
           let combinedResearch = ''
@@ -1357,9 +1370,13 @@ ${draftContent}
                 chapterName: `🔎 "${keyword.slice(0, 20)}..." 검증 중...` 
               })
               
-              // 3개 소스로 교차 검증
+              // 3개 소스로 최신 정보 교차 검증
               const verifyResults: string[] = []
-              const verifyQueries = [keyword, `${keyword} 사실`, `${keyword} 공식`]
+              const verifyQueries = [
+                `${keyword} 최신 2024 2025`,
+                `${keyword} 공식 발표 최근`,
+                `${keyword} 정확한 수치 통계`
+              ]
               
               for (const vq of verifyQueries) {
                 const vResult = await searchWithSerper(vq)
@@ -1381,11 +1398,15 @@ ${draftContent}
                     max_tokens: 500,
                     messages: [{ role: 'user', content: `원문: ${originalFact}
 
-검색결과 (3개 소스):
+검색결과 (3개 최신 소스):
 ${verifyResults.join('\n---\n')}
 
-위 검색결과들을 종합하여 원문이 정확한지 판단하세요.
-정확하면 "정확함"만, 틀렸으면 "수정: (정확한 문장)"만 답하세요.` }],
+위 검색결과들을 종합하여 다음을 판단하세요:
+1. 원문의 정보가 정확한지
+2. 최신 정보인지 (오래된 정보면 최신으로 업데이트)
+
+정확하고 최신이면 "정확함"만 답하세요.
+틀렸거나 오래된 정보면 "수정: (최신 정확한 문장)"만 답하세요.` }],
                   }),
                 })
                 
