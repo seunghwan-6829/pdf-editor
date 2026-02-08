@@ -246,6 +246,7 @@ export default function App() {
   
   const [mode, setMode] = useState<Mode>('ebook')
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('claude_api_key') || '')
+  const [serperApiKey, setSerperApiKey] = useState(() => localStorage.getItem('serper_api_key') || '')
   const [pageSize, setPageSize] = useState<PageSize>('A4')
   const [prompt, setPrompt] = useState('')
   const [bookTitle, setBookTitle] = useState('')
@@ -265,6 +266,14 @@ export default function App() {
   const [showAiEditModal, setShowAiEditModal] = useState(false)
   const [aiEditInstruction, setAiEditInstruction] = useState('')
   const [isAiEditing, setIsAiEditing] = useState(false)
+  
+  // 팩트체크 검수 모달
+  const [showFactCheckModal, setShowFactCheckModal] = useState(false)
+  const [factCheckRange, setFactCheckRange] = useState({ start: 1, end: 10 })
+  const [isFactChecking, setIsFactChecking] = useState(false)
+  const [factCheckProgress, setFactCheckProgress] = useState({ current: 0, total: 0, status: '' })
+  const [factCheckResults, setFactCheckResults] = useState<{page: number; original: string; corrected: string; reason: string}[]>([])
+  const [showSerperKey, setShowSerperKey] = useState(false)
   
   // PDF 다운로드 진행률
   const [pdfProgress, setPdfProgress] = useState({ current: 0, total: 0, status: '' })
@@ -454,6 +463,257 @@ export default function App() {
   const saveApiKey = () => {
     localStorage.setItem('claude_api_key', apiKey)
     setShowApiKey(false)
+  }
+  
+  const saveSerperApiKey = () => {
+    localStorage.setItem('serper_api_key', serperApiKey)
+    setShowSerperKey(false)
+  }
+  
+  // Serper API로 웹 검색
+  const searchWithSerper = async (query: string): Promise<string> => {
+    try {
+      const response = await fetch('https://google.serper.dev/search', {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': serperApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ q: query, gl: 'kr', hl: 'ko' })
+      })
+      const data = await response.json()
+      
+      // 검색 결과 요약
+      let summary = ''
+      if (data.knowledgeGraph) {
+        summary += `[지식그래프] ${data.knowledgeGraph.title || ''}: ${data.knowledgeGraph.description || ''}\n`
+      }
+      if (data.organic) {
+        data.organic.slice(0, 3).forEach((item: { title: string; snippet: string }) => {
+          summary += `- ${item.title}: ${item.snippet}\n`
+        })
+      }
+      return summary || '검색 결과 없음'
+    } catch (e) {
+      console.error('Serper search error:', e)
+      return '검색 실패'
+    }
+  }
+  
+  // 팩트체크 실행
+  const runFactCheck = async () => {
+    if (!apiKey || !serperApiKey) {
+      setError('Claude API 키와 Serper API 키가 모두 필요합니다.')
+      return
+    }
+    
+    const startPage = Math.max(1, factCheckRange.start)
+    const endPage = Math.min(pages.length - 1, factCheckRange.end)
+    
+    if (startPage > endPage) {
+      setError('유효한 페이지 범위를 선택해주세요.')
+      return
+    }
+    
+    setIsFactChecking(true)
+    setFactCheckResults([])
+    setFactCheckProgress({ current: 0, total: endPage - startPage + 1, status: '검수 준비 중...' })
+    
+    try {
+      // 10페이지씩 묶어서 처리
+      const chunkSize = 10
+      const allResults: {page: number; original: string; corrected: string; reason: string}[] = []
+      
+      for (let i = startPage; i <= endPage; i += chunkSize) {
+        const chunkEnd = Math.min(i + chunkSize - 1, endPage)
+        setFactCheckProgress({ 
+          current: i - startPage, 
+          total: endPage - startPage + 1, 
+          status: `${i}~${chunkEnd} 페이지 분석 중...` 
+        })
+        
+        // 해당 페이지들의 텍스트 추출
+        let chunkText = ''
+        for (let p = i; p <= chunkEnd; p++) {
+          if (pages[p]) {
+            const pageText = pages[p].blocks
+              .filter(b => b.type === 'text' || b.type === 'heading')
+              .map(b => b.content)
+              .join('\n')
+            chunkText += `\n[${p}페이지]\n${pageText}\n`
+          }
+        }
+        
+        if (!chunkText.trim()) continue
+        
+        // 1단계: Claude로 검증 필요한 팩트 추출
+        setFactCheckProgress({ 
+          current: i - startPage, 
+          total: endPage - startPage + 1, 
+          status: `${i}~${chunkEnd} 페이지 팩트 추출 중...` 
+        })
+        
+        const extractResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{
+              role: 'user',
+              content: `다음 텍스트에서 사실 검증이 필요한 문장을 최대 5개 추출해주세요.
+숫자, 통계, 날짜, 역사적 사실, 과학적 주장 등 객관적으로 검증 가능한 내용만 추출하세요.
+
+각 항목은 다음 형식으로:
+[페이지번호] 원문 문장 | 검색 키워드
+
+텍스트:
+${chunkText}
+
+검증이 필요한 문장이 없으면 "검증 필요 항목 없음"이라고 답하세요.`
+            }]
+          })
+        })
+        
+        const extractData = await extractResponse.json()
+        const factsText = extractData.content?.[0]?.text || ''
+        
+        if (factsText.includes('검증 필요 항목 없음')) continue
+        
+        // 팩트 파싱
+        const factLines = factsText.split('\n').filter((line: string) => line.includes('|'))
+        
+        // 2단계: 각 팩트를 Serper로 검색
+        const searchResults: {fact: string; searchResult: string; pageNum: string}[] = []
+        
+        for (const line of factLines) {
+          const parts = line.split('|')
+          if (parts.length < 2) continue
+          
+          const fact = parts[0].trim()
+          const keyword = parts[1].trim()
+          const pageMatch = fact.match(/\[(\d+)\]/)
+          const pageNum = pageMatch ? pageMatch[1] : '?'
+          
+          setFactCheckProgress({ 
+            current: i - startPage, 
+            total: endPage - startPage + 1, 
+            status: `검색 중: ${keyword.slice(0, 30)}...` 
+          })
+          
+          const searchResult = await searchWithSerper(keyword)
+          searchResults.push({ fact, searchResult, pageNum })
+          
+          // API 레이트 리밋 방지
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        
+        if (searchResults.length === 0) continue
+        
+        // 3단계: Claude로 검색 결과와 비교하여 검증
+        setFactCheckProgress({ 
+          current: i - startPage, 
+          total: endPage - startPage + 1, 
+          status: `${i}~${chunkEnd} 페이지 검증 중...` 
+        })
+        
+        const verifyPrompt = searchResults.map(r => 
+          `원문: ${r.fact}\n검색결과:\n${r.searchResult}`
+        ).join('\n\n---\n\n')
+        
+        const verifyResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 3000,
+            messages: [{
+              role: 'user',
+              content: `다음 원문들을 검색 결과와 비교하여 사실 여부를 검증해주세요.
+틀린 내용이 있으면 수정안을 제시해주세요.
+
+각 항목마다 다음 형식으로 답변:
+[페이지번호] 판정: 정확함/수정필요
+원문: (원문 내용)
+수정: (수정이 필요하면 수정된 문장, 정확하면 "없음")
+이유: (판정 이유)
+
+---
+
+${verifyPrompt}`
+            }]
+          })
+        })
+        
+        const verifyData = await verifyResponse.json()
+        const verifyText = verifyData.content?.[0]?.text || ''
+        
+        // 수정 필요한 항목만 추출
+        const corrections = verifyText.split(/\[\d+\]/).filter((s: string) => s.includes('수정필요'))
+        
+        for (const correction of corrections) {
+          const pageMatch = correction.match(/페이지.*?(\d+)/) || verifyText.match(/\[(\d+)\].*?수정필요/)
+          const originalMatch = correction.match(/원문:\s*(.+?)(?=수정:|$)/s)
+          const correctedMatch = correction.match(/수정:\s*(.+?)(?=이유:|$)/s)
+          const reasonMatch = correction.match(/이유:\s*(.+?)(?=---|$)/s)
+          
+          if (originalMatch && correctedMatch && correctedMatch[1].trim() !== '없음') {
+            allResults.push({
+              page: parseInt(pageMatch?.[1] || '0'),
+              original: originalMatch[1].trim(),
+              corrected: correctedMatch[1].trim(),
+              reason: reasonMatch?.[1]?.trim() || ''
+            })
+          }
+        }
+      }
+      
+      setFactCheckResults(allResults)
+      setFactCheckProgress({ 
+        current: endPage - startPage + 1, 
+        total: endPage - startPage + 1, 
+        status: allResults.length > 0 ? `검수 완료! ${allResults.length}건 수정 필요` : '검수 완료! 수정 필요 없음' 
+      })
+      
+    } catch (e) {
+      console.error('Fact check error:', e)
+      setError('팩트체크 중 오류가 발생했습니다.')
+    } finally {
+      setIsFactChecking(false)
+    }
+  }
+  
+  // 검수 결과 적용
+  const applyFactCheckCorrection = (index: number) => {
+    const result = factCheckResults[index]
+    if (!result) return
+    
+    const newPages = [...pages]
+    const pageBlocks = newPages[result.page]?.blocks
+    
+    if (pageBlocks) {
+      for (const block of pageBlocks) {
+        if (block.content.includes(result.original.slice(0, 30))) {
+          block.content = block.content.replace(result.original, result.corrected)
+          break
+        }
+      }
+      setPages(newPages)
+      saveToHistory(newPages)
+      
+      // 적용된 항목 제거
+      setFactCheckResults(prev => prev.filter((_, i) => i !== index))
+    }
   }
 
   const currentPage = pages[currentPageIndex]
@@ -2700,6 +2960,9 @@ ${tocText}
           <button onClick={() => setIsEditing(!isEditing)} disabled={pages.length === 0} className={`btn btn-sm ${isEditing ? 'btn-warning' : 'btn-secondary'}`}>
             {isEditing ? '✓ 완료' : '✏️ 편집'}
           </button>
+          <button onClick={() => { setFactCheckRange({ start: 1, end: Math.max(1, pages.length - 1) }); setShowFactCheckModal(true) }} disabled={pages.length <= 1 || isFactChecking} className="btn btn-sm btn-warning">
+            {isFactChecking ? `🔍 ${factCheckProgress.current}/${factCheckProgress.total}` : '🔍 검수'}
+          </button>
           <button onClick={openExportModal} disabled={pages.length <= 1 || isDownloadingPdf} className="btn btn-sm btn-success">
             {isDownloadingPdf ? `📥 ${pdfProgress.current}/${pdfProgress.total}` : '📥 PDF'}
           </button>
@@ -2782,6 +3045,131 @@ ${tocText}
                 >
                   전체 다운로드
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 팩트체크 검수 모달 */}
+      {showFactCheckModal && (
+        <div className="modal-overlay" onClick={() => !isFactChecking && setShowFactCheckModal(false)}>
+          <div className="modal factcheck-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🔍 팩트체크 검수</h3>
+              <button className="modal-close" onClick={() => !isFactChecking && setShowFactCheckModal(false)} disabled={isFactChecking}>✕</button>
+            </div>
+            <div className="modal-body">
+              {/* Serper API 키 설정 */}
+              <div className="form-group">
+                <label>Serper API 키</label>
+                <div className="api-key-input">
+                  <input
+                    type={showSerperKey ? 'text' : 'password'}
+                    value={serperApiKey}
+                    onChange={(e) => setSerperApiKey(e.target.value)}
+                    placeholder="Serper API 키 입력"
+                  />
+                  <button onClick={() => setShowSerperKey(!showSerperKey)} className="btn btn-sm">
+                    {showSerperKey ? '🙈' : '👁️'}
+                  </button>
+                  <button onClick={saveSerperApiKey} className="btn btn-sm btn-primary">저장</button>
+                </div>
+              </div>
+              
+              {/* 페이지 범위 선택 */}
+              <div className="form-group">
+                <label>검수 범위 (총 {pages.length - 1}페이지)</label>
+                <div className="range-inputs">
+                  <input
+                    type="number"
+                    min="1"
+                    max={pages.length - 1}
+                    value={factCheckRange.start}
+                    onChange={(e) => setFactCheckRange(prev => ({ ...prev, start: parseInt(e.target.value) || 1 }))}
+                    disabled={isFactChecking}
+                  />
+                  <span>~</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={pages.length - 1}
+                    value={factCheckRange.end}
+                    onChange={(e) => setFactCheckRange(prev => ({ ...prev, end: parseInt(e.target.value) || 1 }))}
+                    disabled={isFactChecking}
+                  />
+                  <span>페이지</span>
+                </div>
+                <p className="range-info">
+                  {factCheckRange.end - factCheckRange.start + 1}페이지 검수 예정 
+                  (약 {Math.ceil((factCheckRange.end - factCheckRange.start + 1) / 10)}회 API 호출)
+                </p>
+              </div>
+              
+              {/* 진행 상황 */}
+              {isFactChecking && (
+                <div className="factcheck-progress">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{ width: `${(factCheckProgress.current / factCheckProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p>{factCheckProgress.status}</p>
+                </div>
+              )}
+              
+              {/* 검수 결과 */}
+              {factCheckResults.length > 0 && (
+                <div className="factcheck-results">
+                  <h4>📝 수정 필요 항목 ({factCheckResults.length}건)</h4>
+                  <div className="results-list">
+                    {factCheckResults.map((result, idx) => (
+                      <div key={idx} className="result-item">
+                        <div className="result-page">📄 {result.page}페이지</div>
+                        <div className="result-original">
+                          <span className="label">원문:</span>
+                          <span className="text">{result.original}</span>
+                        </div>
+                        <div className="result-corrected">
+                          <span className="label">수정:</span>
+                          <span className="text">{result.corrected}</span>
+                        </div>
+                        <div className="result-reason">
+                          <span className="label">이유:</span>
+                          <span className="text">{result.reason}</span>
+                        </div>
+                        <button 
+                          className="btn btn-sm btn-primary"
+                          onClick={() => applyFactCheckCorrection(idx)}
+                        >
+                          ✓ 적용
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* 실행 버튼 */}
+              <div className="factcheck-actions">
+                <button 
+                  className="btn btn-primary"
+                  onClick={runFactCheck}
+                  disabled={isFactChecking || !serperApiKey}
+                >
+                  {isFactChecking ? '검수 중...' : '🔍 검수 시작'}
+                </button>
+                {factCheckResults.length > 0 && (
+                  <button 
+                    className="btn btn-success"
+                    onClick={() => {
+                      factCheckResults.forEach((_, idx) => applyFactCheckCorrection(0))
+                    }}
+                  >
+                    ✓ 모두 적용
+                  </button>
+                )}
               </div>
             </div>
           </div>
