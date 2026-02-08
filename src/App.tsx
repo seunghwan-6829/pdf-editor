@@ -453,20 +453,6 @@ export default function App() {
     }))
   }
 
-  // 목차를 텍스트로 변환
-  const getTocText = () => {
-    return tocItems
-      .filter(ch => ch.title.trim())
-      .map((ch, i) => {
-        const subs = ch.subItems
-          .filter(s => s.title.trim())
-          .map((s, j) => `  ${i + 1}.${j + 1} ${s.title}`)
-          .join('\n')
-        return `${i + 1}. ${ch.title}${subs ? '\n' + subs : ''}`
-      })
-      .join('\n')
-  }
-
   // Supabase 자동 초기화
   const loadProjectsFromSupabase = async (_userId?: string, role?: UserRole) => {
     setIsLoadingProjects(true)
