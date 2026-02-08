@@ -475,7 +475,7 @@ export default function App() {
   const searchWithSerper = async (query: string, recentOnly: boolean = true): Promise<string> => {
     try {
       const searchParams: { q: string; gl: string; hl: string; num: number; tbs?: string } = { 
-        q: query + (recentOnly ? ' 2024 2025' : ''),  // 최신 연도 키워드 추가
+        q: query + (recentOnly ? ' 2025 2026' : ''),  // 최신 연도 키워드 추가 (현재: 2026년)
         gl: 'kr', 
         hl: 'ko',
         num: 10  // 더 많은 결과 가져오기
@@ -1243,9 +1243,9 @@ ${verifyPrompt}`
           
           // 3개의 다른 검색어로 최신 정보 복합 검색
           const searchQueries = [
-            `${searchTopic} 최신 정의 개념 2024 2025`,
-            `${searchTopic} 최신 통계 데이터 수치 2024`,
-            `${searchTopic} 최신 사례 예시 트렌드 2024 2025`
+            `${searchTopic} 최신 정의 개념 2025 2026`,
+            `${searchTopic} 최신 통계 데이터 수치 2026`,
+            `${searchTopic} 최신 사례 예시 트렌드 2025 2026`
           ]
           
           let combinedResearch = ''
@@ -1302,7 +1302,7 @@ ${verifyPrompt}`
             body: JSON.stringify({
               model: 'claude-sonnet-4-20250514',
               max_tokens: 16000,
-              system: '프리미엄 전자책 전문 작가입니다. 독자에게 실질적 가치를 주는 깊이 있고 풍부한 콘텐츠를 작성합니다. 절대 요약하지 않고, 각 주제를 철저히 다룹니다.',
+              system: '프리미엄 전자책 전문 작가입니다. 현재는 2026년입니다. 독자에게 실질적 가치를 주는 깊이 있고 풍부한 콘텐츠를 작성합니다. 절대 요약하지 않고, 각 주제를 철저히 다룹니다. 2026년 기준 최신 정보를 반영하세요.',
               messages: [{ role: 'user', content: `${draftPrompt}
 
 【참고 자료 - 이 정보를 정확히 반영하여 작성】
@@ -1372,7 +1372,10 @@ ${combinedResearch}
             body: JSON.stringify({
               model: 'claude-sonnet-4-20250514',
               max_tokens: 2000,
-              messages: [{ role: 'user', content: `다음 텍스트에서 숫자, 통계, 날짜, 고유명사 등 검증이 필요한 사실 최대 5개를 추출하세요.
+              messages: [{ role: 'user', content: `[현재: 2026년]
+
+다음 텍스트에서 숫자, 통계, 날짜, 고유명사 등 검증이 필요한 사실 최대 5개를 추출하세요.
+특히 2025년 이전 데이터는 최신 2026년 데이터로 업데이트가 필요할 수 있으니 검증 대상에 포함하세요.
 각 항목은: 원문문장 | 검색키워드 형식으로
 
 텍스트:
@@ -1421,8 +1424,8 @@ ${draftContent}
               // 3개 소스로 최신 정보 교차 검증
               const verifyResults: string[] = []
               const verifyQueries = [
-                `${keyword} 최신 2024 2025`,
-                `${keyword} 공식 발표 최근`,
+                `${keyword} 최신 2025 2026`,
+                `${keyword} 공식 발표 최근 2026`,
                 `${keyword} 정확한 수치 통계`
               ]
               
@@ -1444,17 +1447,19 @@ ${draftContent}
                   body: JSON.stringify({
                     model: 'claude-sonnet-4-20250514',
                     max_tokens: 500,
-                    messages: [{ role: 'user', content: `원문: ${originalFact}
+                    messages: [{ role: 'user', content: `[현재: 2026년]
+
+원문: ${originalFact}
 
 검색결과 (3개 최신 소스):
 ${verifyResults.join('\n---\n')}
 
 위 검색결과들을 종합하여 다음을 판단하세요:
 1. 원문의 정보가 정확한지
-2. 최신 정보인지 (오래된 정보면 최신으로 업데이트)
+2. 2026년 기준 최신 정보인지 (오래된 정보면 최신으로 업데이트)
 
 정확하고 최신이면 "정확함"만 답하세요.
-틀렸거나 오래된 정보면 "수정: (최신 정확한 문장)"만 답하세요.` }],
+틀렸거나 오래된 정보면 "수정: (2026년 기준 최신 정확한 문장)"만 답하세요.` }],
                   }),
                 })
                 
