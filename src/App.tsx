@@ -248,6 +248,29 @@ export default function App() {
   ])
   const [isLoading, setIsLoading] = useState(false)
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, chapterName: '' })
+  
+  // 팩트 기반 작성 상세 진행 상황
+  const [factWritingProgress, setFactWritingProgress] = useState<{
+    isActive: boolean
+    stage: 'collecting' | 'drafting' | 'verifying' | 'correcting' | 'displaying' | 'idle'
+    stageProgress: number  // 현재 단계 진행률 (0-100)
+    overallProgress: number  // 전체 진행률 (0-100)
+    currentTask: string  // 현재 작업 내용
+    logs: string[]  // 실시간 로그
+    sourcesFound: number  // 찾은 소스 수
+    factsVerified: number  // 검증한 팩트 수
+    corrections: number  // 수정된 항목 수
+  }>({
+    isActive: false,
+    stage: 'idle',
+    stageProgress: 0,
+    overallProgress: 0,
+    currentTask: '',
+    logs: [],
+    sourcesFound: 0,
+    factsVerified: 0,
+    corrections: 0
+  })
   const [error, setError] = useState<string | null>(null)
   const [showApiKey, setShowApiKey] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -1197,6 +1220,20 @@ ${verifyPrompt}`
         
         // ========== 팩트 기반 작성 모드 ==========
         if (useFactBasedWriting && serperApiKey) {
+          // 플로팅 진행창 활성화
+          setFactWritingProgress(prev => ({
+            ...prev,
+            isActive: true,
+            stage: 'collecting',
+            stageProgress: 0,
+            overallProgress: Math.round((i / totalItems) * 100),
+            currentTask: `"${searchTopic}" 주제 자료 수집 시작`,
+            logs: [...prev.logs.slice(-20), `📚 [${item.chapterIdx + 1}장] "${searchTopic}" 작성 시작`],
+            sourcesFound: 0,
+            factsVerified: 0,
+            corrections: 0
+          }))
+          
           // 1단계: 다중 소스로 자료 수집
           setGenerationProgress({ 
             current: i + 1, 
@@ -1212,15 +1249,38 @@ ${verifyPrompt}`
           ]
           
           let combinedResearch = ''
-          for (const query of searchQueries) {
+          let sourcesCount = 0
+          for (let qi = 0; qi < searchQueries.length; qi++) {
+            const query = searchQueries[qi]
+            setFactWritingProgress(prev => ({
+              ...prev,
+              stageProgress: Math.round(((qi + 1) / searchQueries.length) * 100),
+              currentTask: `검색 중: "${query.slice(0, 30)}..."`,
+              logs: [...prev.logs.slice(-20), `🔍 검색: ${query.slice(0, 40)}...`]
+            }))
+            
             const result = await searchWithSerper(query)
-            if (result) {
+            if (result && result !== '검색 결과 없음') {
               combinedResearch += `\n【검색: ${query}】\n${result}\n`
+              sourcesCount += (result.match(/\n/g) || []).length
             }
             await new Promise(resolve => setTimeout(resolve, 300))
           }
           
+          setFactWritingProgress(prev => ({
+            ...prev,
+            sourcesFound: sourcesCount,
+            logs: [...prev.logs.slice(-20), `✅ ${sourcesCount}개 소스 수집 완료`]
+          }))
+          
           // ====== 2단계: 초안 작성 (백그라운드 - 화면에 안 보임) ======
+          setFactWritingProgress(prev => ({
+            ...prev,
+            stage: 'drafting',
+            stageProgress: 0,
+            currentTask: `AI가 초안 작성 중...`,
+            logs: [...prev.logs.slice(-20), `📝 초안 작성 시작 (AI 분석 중...)`]
+          }))
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
@@ -1280,7 +1340,21 @@ ${combinedResearch}
           const draftData = await draftResponse.json()
           let draftContent = draftData.content?.[0]?.text || ''
           
+          const draftLength = draftContent.length
+          setFactWritingProgress(prev => ({
+            ...prev,
+            stageProgress: 100,
+            logs: [...prev.logs.slice(-20), `✅ 초안 작성 완료 (${draftLength.toLocaleString()}자)`]
+          }))
+          
           // ====== 3단계: 교차 검증 (백그라운드 - 화면에 안 보임) ======
+          setFactWritingProgress(prev => ({
+            ...prev,
+            stage: 'verifying',
+            stageProgress: 0,
+            currentTask: `팩트 추출 및 검증 준비 중...`,
+            logs: [...prev.logs.slice(-20), `🔎 교차 검증 시작`]
+          }))
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
@@ -1313,13 +1387,30 @@ ${draftContent}
           
           if (!factsText.includes('검증 필요 없음')) {
             const factLines = factsText.split('\n').filter((line: string) => line.includes('|'))
+            const totalFacts = factLines.length
+            let verifiedCount = 0
+            let correctionCount = 0
             
-            for (const line of factLines) {
+            setFactWritingProgress(prev => ({
+              ...prev,
+              currentTask: `${totalFacts}개 팩트 검증 예정`,
+              logs: [...prev.logs.slice(-20), `📋 ${totalFacts}개 팩트 발견, 검증 시작`]
+            }))
+            
+            for (let fi = 0; fi < factLines.length; fi++) {
+              const line = factLines[fi]
               const parts = line.split('|')
               if (parts.length < 2) continue
               
               const originalFact = parts[0].trim()
               const keyword = parts[1].trim()
+              
+              setFactWritingProgress(prev => ({
+                ...prev,
+                stageProgress: Math.round(((fi + 1) / totalFacts) * 100),
+                currentTask: `검증 중: "${keyword.slice(0, 25)}..."`,
+                logs: [...prev.logs.slice(-20), `🔍 [${fi + 1}/${totalFacts}] "${keyword.slice(0, 30)}..." 검증 중`]
+              }))
               
               setGenerationProgress({ 
                 current: i + 1, 
@@ -1370,16 +1461,49 @@ ${verifyResults.join('\n---\n')}
                 const verifyData = await verifyResponse.json()
                 const verifyResult = verifyData.content?.[0]?.text?.trim() || ''
                 
+                verifiedCount++
+                
                 // 수정 필요시 초안 수정 (백그라운드)
                 if (verifyResult.startsWith('수정:')) {
                   const correctedText = verifyResult.replace('수정:', '').trim()
                   draftContent = draftContent.replace(originalFact, correctedText)
+                  correctionCount++
+                  
+                  setFactWritingProgress(prev => ({
+                    ...prev,
+                    corrections: prev.corrections + 1,
+                    logs: [...prev.logs.slice(-20), `✏️ 수정: "${keyword.slice(0, 20)}..." → 최신 정보로 업데이트`]
+                  }))
+                } else {
+                  setFactWritingProgress(prev => ({
+                    ...prev,
+                    logs: [...prev.logs.slice(-20), `✅ 확인: "${keyword.slice(0, 25)}..." 정확함`]
+                  }))
                 }
               }
             }
+            
+            setFactWritingProgress(prev => ({
+              ...prev,
+              factsVerified: verifiedCount,
+              logs: [...prev.logs.slice(-20), `🎯 검증 완료: ${verifiedCount}개 중 ${correctionCount}개 수정됨`]
+            }))
+          } else {
+            setFactWritingProgress(prev => ({
+              ...prev,
+              logs: [...prev.logs.slice(-20), `✅ 검증 필요한 팩트 없음 - 바로 표시`]
+            }))
           }
           
           // ====== 4단계: 검증 완료! 이제 실시간으로 화면에 표시 ======
+          setFactWritingProgress(prev => ({
+            ...prev,
+            stage: 'displaying',
+            stageProgress: 0,
+            overallProgress: Math.round(((i + 0.8) / totalItems) * 100),
+            currentTask: `화면에 표시 중...`,
+            logs: [...prev.logs.slice(-20), `✨ "${searchTopic}" 검증 완료! 화면에 표시 시작`]
+          }))
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
@@ -1395,10 +1519,27 @@ ${verifyResults.join('\n---\n')}
             displayedContent += chars.slice(c, c + chunkSize).join('')
             const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + displayedContent, previewSize)
             setPages(newPages)
+            
+            // 20%마다 진행률 업데이트 (너무 자주 업데이트하면 성능 저하)
+            if (c % (chars.length / 5) < chunkSize) {
+              setFactWritingProgress(prev => ({
+                ...prev,
+                stageProgress: Math.round((c / chars.length) * 100)
+              }))
+            }
+            
             await new Promise(resolve => setTimeout(resolve, 5))  // 5ms 딜레이
           }
           
           sectionContent = draftContent
+          
+          // 이 섹션 완료
+          setFactWritingProgress(prev => ({
+            ...prev,
+            stageProgress: 100,
+            overallProgress: Math.round(((i + 1) / totalItems) * 100),
+            logs: [...prev.logs.slice(-20), `🎉 "${searchTopic}" 작성 완료!`]
+          }))
           
         } else {
           // ========== 일반 모드 (스트리밍) ==========
@@ -1548,6 +1689,18 @@ ${verifyResults.join('\n---\n')}
     } finally {
       setIsLoading(false)
       setGenerationProgress({ current: 0, total: 0, chapterName: '' })
+      // 플로팅 진행창 닫기
+      setFactWritingProgress({
+        isActive: false,
+        stage: 'idle',
+        stageProgress: 0,
+        overallProgress: 0,
+        currentTask: '',
+        logs: [],
+        sourcesFound: 0,
+        factsVerified: 0,
+        corrections: 0
+      })
     }
   }
 
@@ -3507,6 +3660,137 @@ ${currentContent.slice(0, 500)}...
             </div>
           )}
         </div>
+
+        {/* 팩트 기반 작성 진행 상황 플로팅 창 */}
+        {factWritingProgress.isActive && (
+          <div className="fact-writing-floating" style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            width: '380px',
+            maxHeight: '500px',
+            backgroundColor: '#1a1a2e',
+            borderRadius: '16px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+            zIndex: 9999,
+            overflow: 'hidden',
+            border: '1px solid #333'
+          }}>
+            {/* 헤더 */}
+            <div style={{
+              padding: '16px 20px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '20px' }}>
+                  {factWritingProgress.stage === 'collecting' && '🔍'}
+                  {factWritingProgress.stage === 'drafting' && '📝'}
+                  {factWritingProgress.stage === 'verifying' && '🔎'}
+                  {factWritingProgress.stage === 'correcting' && '✏️'}
+                  {factWritingProgress.stage === 'displaying' && '✨'}
+                </span>
+                <span style={{ fontWeight: 'bold', fontSize: '15px' }}>
+                  {factWritingProgress.stage === 'collecting' && '자료 수집 중'}
+                  {factWritingProgress.stage === 'drafting' && '초안 작성 중'}
+                  {factWritingProgress.stage === 'verifying' && '교차 검증 중'}
+                  {factWritingProgress.stage === 'correcting' && '수정 적용 중'}
+                  {factWritingProgress.stage === 'displaying' && '화면 표시 중'}
+                </span>
+              </div>
+              
+              {/* 전체 진행률 */}
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                  <span>전체 진행률</span>
+                  <span>{factWritingProgress.overallProgress}%</span>
+                </div>
+                <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${factWritingProgress.overallProgress}%`,
+                    backgroundColor: '#4ade80',
+                    borderRadius: '3px',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+              </div>
+              
+              {/* 현재 단계 진행률 */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                  <span>현재 단계</span>
+                  <span>{factWritingProgress.stageProgress}%</span>
+                </div>
+                <div style={{ height: '4px', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${factWritingProgress.stageProgress}%`,
+                    backgroundColor: 'white',
+                    borderRadius: '2px',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+              </div>
+            </div>
+            
+            {/* 현재 작업 */}
+            <div style={{
+              padding: '12px 20px',
+              backgroundColor: '#252540',
+              borderBottom: '1px solid #333',
+              fontSize: '13px',
+              color: '#a0a0c0'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="spinner-small" style={{ width: '14px', height: '14px' }}></span>
+                <span style={{ color: 'white' }}>{factWritingProgress.currentTask}</span>
+              </div>
+            </div>
+            
+            {/* 통계 */}
+            <div style={{
+              padding: '12px 20px',
+              display: 'flex',
+              gap: '20px',
+              backgroundColor: '#1f1f35',
+              borderBottom: '1px solid #333',
+              fontSize: '12px'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: '#4ade80', fontWeight: 'bold', fontSize: '18px' }}>{factWritingProgress.sourcesFound}</div>
+                <div style={{ color: '#888' }}>소스 수집</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '18px' }}>{factWritingProgress.factsVerified}</div>
+                <div style={{ color: '#888' }}>팩트 검증</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '18px' }}>{factWritingProgress.corrections}</div>
+                <div style={{ color: '#888' }}>수정 완료</div>
+              </div>
+            </div>
+            
+            {/* 로그 */}
+            <div style={{
+              padding: '12px 20px',
+              maxHeight: '180px',
+              overflowY: 'auto',
+              fontSize: '11px',
+              lineHeight: '1.6',
+              color: '#999'
+            }}>
+              {factWritingProgress.logs.map((log, idx) => (
+                <div key={idx} style={{ 
+                  marginBottom: '4px',
+                  opacity: idx === factWritingProgress.logs.length - 1 ? 1 : 0.7
+                }}>
+                  {log}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 복사/붙여넣기 플로팅 버튼 */}
         {selectedBlockIds.length > 0 && (
