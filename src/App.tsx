@@ -1222,131 +1222,273 @@ ${verifyPrompt}`
           chapterName: displayName 
         })
 
-        let sectionPrompt = ''
-        let factInfo = ''
+        const searchTopic = item.subTitle || item.chapterTitle
+        let sectionContent = ''
         
-        // 팩트 기반 작성: Serper로 관련 정보 검색
+        // ========== 팩트 기반 작성 모드 ==========
         if (useFactBasedWriting && serperApiKey) {
-          const searchTopic = item.subTitle || item.chapterTitle
+          // 1단계: 다중 소스로 자료 수집
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
-            chapterName: `🔍 "${searchTopic}" 정보 검색 중...` 
+            chapterName: `🔍 "${searchTopic}" 자료 수집 중...` 
           })
           
-          const searchResult = await searchWithSerper(`${bookTitle} ${searchTopic} ${prompt}`)
-          if (searchResult) {
-            factInfo = `\n\n【참고 자료 - 검색된 최신 정보 (이 정보를 바탕으로 정확하게 작성)】\n${searchResult}\n`
+          // 3개의 다른 검색어로 복합 검색
+          const searchQueries = [
+            `${searchTopic} 정의 개념`,
+            `${searchTopic} 통계 데이터 수치`,
+            `${searchTopic} 사례 예시 연구`
+          ]
+          
+          let combinedResearch = ''
+          for (const query of searchQueries) {
+            const result = await searchWithSerper(query)
+            if (result) {
+              combinedResearch += `\n【검색: ${query}】\n${result}\n`
+            }
+            await new Promise(resolve => setTimeout(resolve, 300))
           }
           
-          // API 레이트 리밋 방지
-          await new Promise(resolve => setTimeout(resolve, 300))
-        }
-        
-        if (item.subTitle) {
-          // 세부목차 단위 생성
-          sectionPrompt = `${isNewChapter && i === 0 ? `# ${bookTitle}\n\n` : ''}${isNewChapter ? `## ${item.chapterIdx + 1}장: ${item.chapterTitle}\n\n` : ''}### ${item.chapterIdx + 1}.${(item.subIdx || 0) + 1} ${item.subTitle}
+          // 2단계: 초안 작성 (화면에 표시하지 않음)
+          setGenerationProgress({ 
+            current: i + 1, 
+            total: totalItems, 
+            chapterName: `📝 "${searchTopic}" 초안 작성 중...` 
+          })
+          
+          const draftPrompt = item.subTitle 
+            ? `${isNewChapter && i === 0 ? `# ${bookTitle}\n\n` : ''}${isNewChapter ? `## ${item.chapterIdx + 1}장: ${item.chapterTitle}\n\n` : ''}### ${item.chapterIdx + 1}.${(item.subIdx || 0) + 1} ${item.subTitle}`
+            : `${i === 0 ? `# ${bookTitle}\n\n` : ''}## ${item.chapterIdx + 1}장: ${item.chapterTitle}`
+          
+          const draftResponse = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+              'anthropic-dangerous-direct-browser-access': 'true',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 8000,
+              system: '전자책 작가입니다. 참고 자료를 바탕으로 정확한 정보만 작성합니다.',
+              messages: [{ role: 'user', content: `${draftPrompt}
+
+【참고 자료 - 이 정보를 정확히 반영하여 작성】
+${combinedResearch}
+
+【작성 규칙】
+- 위 참고 자료의 수치, 통계, 사실을 정확히 인용
+- 출처가 불확실한 정보는 작성하지 않음
+- > 콜아웃, [STEP], [SUMMARY], [HIGHLIGHT] 등 다양한 요소 활용
+- **굵게** 키워드 강조
+- 5-8개 문단으로 상세히 작성
+
+주제: ${prompt}` }],
+            }),
+          })
+          
+          if (!draftResponse.ok) throw new Error('초안 작성 실패')
+          const draftData = await draftResponse.json()
+          let draftContent = draftData.content?.[0]?.text || ''
+          
+          // 3단계: 초안에서 검증 필요한 팩트 추출 및 교차 검증
+          setGenerationProgress({ 
+            current: i + 1, 
+            total: totalItems, 
+            chapterName: `🔎 "${searchTopic}" 교차 검증 중...` 
+          })
+          
+          const extractFactsResponse = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+              'anthropic-dangerous-direct-browser-access': 'true',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 2000,
+              messages: [{ role: 'user', content: `다음 텍스트에서 숫자, 통계, 날짜, 고유명사 등 검증이 필요한 사실 최대 5개를 추출하세요.
+각 항목은: 원문문장 | 검색키워드 형식으로
+
+텍스트:
+${draftContent}
+
+검증 필요 없으면 "검증 필요 없음"` }],
+            }),
+          })
+          
+          const factsData = await extractFactsResponse.json()
+          const factsText = factsData.content?.[0]?.text || ''
+          
+          if (!factsText.includes('검증 필요 없음')) {
+            const factLines = factsText.split('\n').filter((line: string) => line.includes('|'))
+            
+            for (const line of factLines) {
+              const parts = line.split('|')
+              if (parts.length < 2) continue
+              
+              const originalFact = parts[0].trim()
+              const keyword = parts[1].trim()
+              
+              // 3개 소스로 교차 검증
+              setGenerationProgress({ 
+                current: i + 1, 
+                total: totalItems, 
+                chapterName: `🔎 "${keyword.slice(0, 20)}..." 교차 검증 중...` 
+              })
+              
+              const verifyResults: string[] = []
+              const verifyQueries = [keyword, `${keyword} 사실`, `${keyword} 공식`]
+              
+              for (const vq of verifyQueries) {
+                const vResult = await searchWithSerper(vq)
+                if (vResult) verifyResults.push(vResult)
+                await new Promise(resolve => setTimeout(resolve, 300))
+              }
+              
+              if (verifyResults.length > 0) {
+                // Claude로 교차 검증
+                const verifyResponse = await fetch('https://api.anthropic.com/v1/messages', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerous-direct-browser-access': 'true',
+                  },
+                  body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 500,
+                    messages: [{ role: 'user', content: `원문: ${originalFact}
+
+검색결과 (3개 소스):
+${verifyResults.join('\n---\n')}
+
+위 검색결과들을 종합하여 원문이 정확한지 판단하세요.
+정확하면 "정확함"만, 틀렸으면 "수정: (정확한 문장)"만 답하세요.` }],
+                  }),
+                })
+                
+                const verifyData = await verifyResponse.json()
+                const verifyResult = verifyData.content?.[0]?.text?.trim() || ''
+                
+                // 수정 필요시 초안 수정
+                if (verifyResult.startsWith('수정:')) {
+                  const correctedText = verifyResult.replace('수정:', '').trim()
+                  draftContent = draftContent.replace(originalFact, correctedText)
+                }
+              }
+            }
+          }
+          
+          sectionContent = draftContent
+          
+          // 4단계: 검증 완료된 내용을 화면에 표시
+          setGenerationProgress({ 
+            current: i + 1, 
+            total: totalItems, 
+            chapterName: `✅ "${searchTopic}" 검증 완료!` 
+          })
+          
+          const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + sectionContent, previewSize)
+          setPages(newPages)
+          
+        } else {
+          // ========== 일반 모드 (스트리밍) ==========
+          let sectionPrompt = ''
+          
+          if (item.subTitle) {
+            sectionPrompt = `${isNewChapter && i === 0 ? `# ${bookTitle}\n\n` : ''}${isNewChapter ? `## ${item.chapterIdx + 1}장: ${item.chapterTitle}\n\n` : ''}### ${item.chapterIdx + 1}.${(item.subIdx || 0) + 1} ${item.subTitle}
 
 【작성 규칙 - 이 세부목차를 최소 10페이지 분량으로 상세히 작성】
 - 5-8개 이상의 문단으로 깊이 있게 작성
 - 각 문단은 최소 4-5문장으로 구성
 - 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
 - **굵게**로 키워드 강조
-- 문단 사이 빈 줄로 구분
-${factInfo ? '- 참고 자료의 정확한 수치와 사실을 반영하여 작성' : ''}
 
-【다양한 레이아웃 요소 적극 활용 - 매우 중요!】
-- > 콜아웃 (3개 이상): 팁, 중요, 예시, 데이터, 참고 등
-- [STEP 1] [STEP 2] [STEP 3] 형태로 단계별 설명 (방법론이나 과정 설명 시)
-- [SUMMARY] 핵심 요약 박스 (섹션 끝에 요약)
-- [QUOTE] 인상적인 인용구나 명언
-- [x] 체크리스트 형태 (할 일 목록, 준비물 등)
-- [HIGHLIGHT] 특별히 강조할 핵심 문장
+【다양한 레이아웃 요소 적극 활용】
+- > 콜아웃 (3개 이상): 팁, 중요, 예시, 데이터
+- [STEP 1] [STEP 2] [STEP 3] 단계별 설명
+- [SUMMARY] 핵심 요약 박스
+- [HIGHLIGHT] 핵심 문장
 - [IMAGE: 설명] 이미지 영역 (3-4개)
-- --- 구분선 (섹션 구분 시)
-- 목록(-) 활용
 
 【금지】코드블록
-${factInfo}
+
 주제: ${prompt}
 
-이 세부목차 "${item.subTitle}"에 대해 다양한 레이아웃 요소를 활용해 시각적으로 풍부하게 작성해주세요!`
-        } else {
-          // 세부목차 없는 챕터 전체 생성
-          sectionPrompt = `${i === 0 ? `# ${bookTitle}\n\n` : ''}## ${item.chapterIdx + 1}장: ${item.chapterTitle}
+"${item.subTitle}"에 대해 작성해주세요!`
+          } else {
+            sectionPrompt = `${i === 0 ? `# ${bookTitle}\n\n` : ''}## ${item.chapterIdx + 1}장: ${item.chapterTitle}
 
 【작성 규칙 - 이 챕터를 최소 15페이지 분량으로 상세히 작성】
 - 8-12개 이상의 문단으로 깊이 있게 작성
 - 각 문단은 최소 4-5문장으로 구성
 - 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
 - **굵게**로 키워드 강조
-- 문단 사이 빈 줄로 구분
-${factInfo ? '- 참고 자료의 정확한 수치와 사실을 반영하여 작성' : ''}
 
-【다양한 레이아웃 요소 적극 활용 - 매우 중요!】
-- > 콜아웃 (5개 이상): 팁, 중요, 예시, 데이터, 참고 등
-- [STEP 1] [STEP 2] [STEP 3] 형태로 단계별 설명
-- [SUMMARY] 핵심 요약 박스 (각 섹션 끝에)
-- [QUOTE] 인상적인 인용구나 명언
-- [x] 체크리스트 형태
-- [HIGHLIGHT] 특별히 강조할 핵심 문장
+【다양한 레이아웃 요소 적극 활용】
+- > 콜아웃 (5개 이상): 팁, 중요, 예시, 데이터
+- [STEP 1] [STEP 2] [STEP 3] 단계별 설명
+- [SUMMARY] 핵심 요약 박스
+- [HIGHLIGHT] 핵심 문장
 - [IMAGE: 설명] 이미지 영역 (5-7개)
-- --- 구분선 (섹션 구분 시)
-- 목록(-) 활용
 
 【금지】코드블록
-${factInfo}
+
 주제: ${prompt}
 
-이 챕터 "${item.chapterTitle}"에 대해 다양한 레이아웃 요소를 활용해 시각적으로 풍부하게 작성해주세요!`
-        }
+"${item.chapterTitle}"에 대해 작성해주세요!`
+          }
 
-        // 스트리밍 호출
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 16000,
-            stream: true,
-            system: '프리미엄 전자책 전문 작가입니다. 독자에게 실질적 가치를 주는 깊이 있고 풍부한 콘텐츠를 작성합니다. 절대 요약하지 않고, 각 주제를 철저히 다룹니다.',
-            messages: [{ role: 'user', content: sectionPrompt }],
-          }),
-        })
+          const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+              'anthropic-dangerous-direct-browser-access': 'true',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 16000,
+              stream: true,
+              system: '프리미엄 전자책 전문 작가입니다. 독자에게 실질적 가치를 주는 깊이 있고 풍부한 콘텐츠를 작성합니다.',
+              messages: [{ role: 'user', content: sectionPrompt }],
+            }),
+          })
 
-        if (!response.ok) throw new Error('API 오류')
+          if (!response.ok) throw new Error('API 오류')
 
-        const reader = response.body?.getReader()
-        if (!reader) throw new Error('스트리밍 실패')
+          const reader = response.body?.getReader()
+          if (!reader) throw new Error('스트리밍 실패')
 
-        const decoder = new TextDecoder()
-        let sectionContent = ''
+          const decoder = new TextDecoder()
 
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
+            const chunk = decoder.decode(value)
+            const lines = chunk.split('\n')
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              if (data === '[DONE]') continue
-              try {
-                const parsed = JSON.parse(data)
-                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                  sectionContent += parsed.delta.text
-                  // 실시간 업데이트
-                  const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + sectionContent, previewSize)
-                  setPages(newPages)
-                }
-              } catch {}
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                if (data === '[DONE]') continue
+                try {
+                  const parsed = JSON.parse(data)
+                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                    sectionContent += parsed.delta.text
+                    const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + sectionContent, previewSize)
+                    setPages(newPages)
+                  }
+                } catch {}
+              }
             }
           }
         }
@@ -1395,139 +1537,7 @@ ${factInfo}
       }
 
       // 완료 후 히스토리 저장
-      let finalPages = parseMarkdownToPages(allContent, previewSize)
-      
-      // 팩트 기반 작성 시 자동 팩트체크 + 자동 수정
-      if (useFactBasedWriting && serperApiKey) {
-        setGenerationProgress({ current: totalItems, total: totalItems, chapterName: '🔍 자동 팩트체크 중...' })
-        
-        try {
-          // 전체 페이지 중 텍스트 추출 (10페이지씩)
-          const chunkSize = 10
-          let correctionCount = 0
-          
-          for (let pageStart = 1; pageStart < finalPages.length; pageStart += chunkSize) {
-            const pageEnd = Math.min(pageStart + chunkSize - 1, finalPages.length - 1)
-            
-            // 텍스트 추출
-            let chunkText = ''
-            const blockInfos: {pageIdx: number; blockIdx: number; content: string}[] = []
-            
-            for (let p = pageStart; p <= pageEnd; p++) {
-              if (finalPages[p]) {
-                finalPages[p].blocks.forEach((block, bIdx) => {
-                  if (block.type === 'text' || block.type === 'heading') {
-                    const blockId = `[P${p}B${bIdx}]`
-                    chunkText += `${blockId} ${block.content}\n`
-                    blockInfos.push({ pageIdx: p, blockIdx: bIdx, content: block.content })
-                  }
-                })
-              }
-            }
-            
-            if (!chunkText.trim()) continue
-            
-            setGenerationProgress({ 
-              current: totalItems, 
-              total: totalItems, 
-              chapterName: `🔍 ${pageStart}-${pageEnd}페이지 검증 중...` 
-            })
-            
-            // Claude로 팩트 추출
-            const extractResponse = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerous-direct-browser-access': 'true'
-              },
-              body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 2000,
-                messages: [{
-                  role: 'user',
-                  content: `다음 텍스트에서 사실 검증이 필요한 숫자, 통계, 날짜, 역사적 사실을 최대 3개 추출하세요.
-각 항목은 [P숫자B숫자] 형식의 블록ID와 함께:
-[P숫자B숫자] 검증필요문장 | 검색키워드
-
-텍스트:
-${chunkText}
-
-검증 필요 항목이 없으면 "검증 필요 항목 없음"이라고만 답하세요.`
-                }]
-              })
-            })
-            
-            const extractData = await extractResponse.json()
-            const factsText = extractData.content?.[0]?.text || ''
-            
-            if (factsText.includes('검증 필요 항목 없음')) continue
-            
-            // 각 팩트 검색 및 검증
-            const factLines = factsText.split('\n').filter((line: string) => line.includes('|') && line.includes('[P'))
-            
-            for (const line of factLines) {
-              const parts = line.split('|')
-              if (parts.length < 2) continue
-              
-              const blockIdMatch = line.match(/\[P(\d+)B(\d+)\]/)
-              if (!blockIdMatch) continue
-              
-              const pageIdx = parseInt(blockIdMatch[1])
-              const blockIdx = parseInt(blockIdMatch[2])
-              const keyword = parts[1].trim()
-              
-              // Serper 검색
-              const searchResult = await searchWithSerper(keyword)
-              if (!searchResult) continue
-              
-              // Claude로 검증 및 수정
-              const verifyResponse = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-api-key': apiKey,
-                  'anthropic-version': '2023-06-01',
-                  'anthropic-dangerous-direct-browser-access': 'true'
-                },
-                body: JSON.stringify({
-                  model: 'claude-sonnet-4-20250514',
-                  max_tokens: 1000,
-                  messages: [{
-                    role: 'user',
-                    content: `원문: ${finalPages[pageIdx]?.blocks[blockIdx]?.content || ''}
-
-검색결과: ${searchResult}
-
-원문이 정확하면 "정확함"만 답하세요.
-틀렸다면 수정된 전체 문장만 답하세요 (다른 설명 없이 수정된 문장만).`
-                  }]
-                })
-              })
-              
-              const verifyData = await verifyResponse.json()
-              const result = verifyData.content?.[0]?.text?.trim() || ''
-              
-              // 수정 필요한 경우 자동 적용
-              if (result && !result.includes('정확함') && finalPages[pageIdx]?.blocks[blockIdx]) {
-                finalPages[pageIdx].blocks[blockIdx].content = result
-                correctionCount++
-              }
-              
-              await new Promise(resolve => setTimeout(resolve, 500))
-            }
-          }
-          
-          if (correctionCount > 0) {
-            setPages([...finalPages])
-            console.log(`자동 팩트체크: ${correctionCount}건 수정됨`)
-          }
-        } catch (factCheckError) {
-          console.error('자동 팩트체크 오류:', factCheckError)
-        }
-      }
-      
+      const finalPages = parseMarkdownToPages(allContent, previewSize)
       saveToHistory(finalPages)
 
     } catch (e) {
