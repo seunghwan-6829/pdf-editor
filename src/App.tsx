@@ -165,6 +165,49 @@ const rgbToHex = (r: number, g: number, b: number): string => {
   }).join('')
 }
 
+// 메인 컬러에서 강조 컬러 자동 생성 (보색 기반)
+const getAccentFromMain = (mainHex: string): string => {
+  const rgb = hexToRgb(mainHex)
+  // RGB to HSL
+  const r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  let h = 0, s = 0
+  const l = (max + min) / 2
+  
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+      case g: h = ((b - r) / d + 2) / 6; break
+      case b: h = ((r - g) / d + 4) / 6; break
+    }
+  }
+  
+  // 보색: Hue를 180도 회전 + 채도 높이기
+  const newH = (h + 0.5) % 1
+  const newS = Math.min(1, s * 1.3 + 0.2)  // 채도 높이기
+  const newL = Math.max(0.3, Math.min(0.6, l))  // 밝기 조절
+  
+  // HSL to RGB
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1/6) return p + (q - p) * 6 * t
+    if (t < 1/2) return q
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
+    return p
+  }
+  
+  const q = newL < 0.5 ? newL * (1 + newS) : newL + newS - newL * newS
+  const p = 2 * newL - q
+  const newR = Math.round(hue2rgb(p, q, newH + 1/3) * 255)
+  const newG = Math.round(hue2rgb(p, q, newH) * 255)
+  const newB = Math.round(hue2rgb(p, q, newH - 1/3) * 255)
+  
+  return rgbToHex(newR, newG, newB)
+}
+
 const getLuminance = (hex: string): number => {
   const { r, g, b } = hexToRgb(hex)
   const [rs, gs, bs] = [r, g, b].map(c => {
@@ -247,6 +290,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('ebook')
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('claude_api_key') || '')
   const [serperApiKey, setSerperApiKey] = useState(() => localStorage.getItem('serper_api_key') || '')
+  const [useFactBasedWriting, setUseFactBasedWriting] = useState(false)  // 팩트 기반 작성
   const [pageSize, setPageSize] = useState<PageSize>('A4')
   const [prompt, setPrompt] = useState('')
   const [bookTitle, setBookTitle] = useState('')
@@ -345,6 +389,11 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark')
   }, [])
+  
+  // 메인 컬러 변경 시 강조 컬러 자동 설정
+  useEffect(() => {
+    setAccentColor(getAccentFromMain(mainColor))
+  }, [mainColor])
   
   // 세션 확인 및 자동 로그인
   useEffect(() => {
@@ -1202,6 +1251,25 @@ ${verifyPrompt}`
         })
 
         let sectionPrompt = ''
+        let factInfo = ''
+        
+        // 팩트 기반 작성: Serper로 관련 정보 검색
+        if (useFactBasedWriting && serperApiKey) {
+          const searchTopic = item.subTitle || item.chapterTitle
+          setGenerationProgress({ 
+            current: i + 1, 
+            total: totalItems, 
+            chapterName: `🔍 "${searchTopic}" 정보 검색 중...` 
+          })
+          
+          const searchResult = await searchWithSerper(`${bookTitle} ${searchTopic} ${prompt}`)
+          if (searchResult) {
+            factInfo = `\n\n【참고 자료 - 검색된 최신 정보 (이 정보를 바탕으로 정확하게 작성)】\n${searchResult}\n`
+          }
+          
+          // API 레이트 리밋 방지
+          await new Promise(resolve => setTimeout(resolve, 300))
+        }
         
         if (item.subTitle) {
           // 세부목차 단위 생성
@@ -1213,6 +1281,7 @@ ${verifyPrompt}`
 - 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
 - **굵게**로 키워드 강조
 - 문단 사이 빈 줄로 구분
+${factInfo ? '- 참고 자료의 정확한 수치와 사실을 반영하여 작성' : ''}
 
 【다양한 레이아웃 요소 적극 활용 - 매우 중요!】
 - > 콜아웃 (3개 이상): 팁, 중요, 예시, 데이터, 참고 등
@@ -1226,7 +1295,7 @@ ${verifyPrompt}`
 - 목록(-) 활용
 
 【금지】코드블록
-
+${factInfo}
 주제: ${prompt}
 
 이 세부목차 "${item.subTitle}"에 대해 다양한 레이아웃 요소를 활용해 시각적으로 풍부하게 작성해주세요!`
@@ -1240,6 +1309,7 @@ ${verifyPrompt}`
 - 구체적인 예시, 실제 사례, 데이터 수치 반드시 포함
 - **굵게**로 키워드 강조
 - 문단 사이 빈 줄로 구분
+${factInfo ? '- 참고 자료의 정확한 수치와 사실을 반영하여 작성' : ''}
 
 【다양한 레이아웃 요소 적극 활용 - 매우 중요!】
 - > 콜아웃 (5개 이상): 팁, 중요, 예시, 데이터, 참고 등
@@ -1253,7 +1323,7 @@ ${verifyPrompt}`
 - 목록(-) 활용
 
 【금지】코드블록
-
+${factInfo}
 주제: ${prompt}
 
 이 챕터 "${item.chapterTitle}"에 대해 다양한 레이아웃 요소를 활용해 시각적으로 풍부하게 작성해주세요!`
@@ -1353,7 +1423,139 @@ ${verifyPrompt}`
       }
 
       // 완료 후 히스토리 저장
-      const finalPages = parseMarkdownToPages(allContent, previewSize)
+      let finalPages = parseMarkdownToPages(allContent, previewSize)
+      
+      // 팩트 기반 작성 시 자동 팩트체크 + 자동 수정
+      if (useFactBasedWriting && serperApiKey) {
+        setGenerationProgress({ current: totalItems, total: totalItems, chapterName: '🔍 자동 팩트체크 중...' })
+        
+        try {
+          // 전체 페이지 중 텍스트 추출 (10페이지씩)
+          const chunkSize = 10
+          let correctionCount = 0
+          
+          for (let pageStart = 1; pageStart < finalPages.length; pageStart += chunkSize) {
+            const pageEnd = Math.min(pageStart + chunkSize - 1, finalPages.length - 1)
+            
+            // 텍스트 추출
+            let chunkText = ''
+            const blockInfos: {pageIdx: number; blockIdx: number; content: string}[] = []
+            
+            for (let p = pageStart; p <= pageEnd; p++) {
+              if (finalPages[p]) {
+                finalPages[p].blocks.forEach((block, bIdx) => {
+                  if (block.type === 'text' || block.type === 'heading') {
+                    const blockId = `[P${p}B${bIdx}]`
+                    chunkText += `${blockId} ${block.content}\n`
+                    blockInfos.push({ pageIdx: p, blockIdx: bIdx, content: block.content })
+                  }
+                })
+              }
+            }
+            
+            if (!chunkText.trim()) continue
+            
+            setGenerationProgress({ 
+              current: totalItems, 
+              total: totalItems, 
+              chapterName: `🔍 ${pageStart}-${pageEnd}페이지 검증 중...` 
+            })
+            
+            // Claude로 팩트 추출
+            const extractResponse = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+              },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 2000,
+                messages: [{
+                  role: 'user',
+                  content: `다음 텍스트에서 사실 검증이 필요한 숫자, 통계, 날짜, 역사적 사실을 최대 3개 추출하세요.
+각 항목은 [P숫자B숫자] 형식의 블록ID와 함께:
+[P숫자B숫자] 검증필요문장 | 검색키워드
+
+텍스트:
+${chunkText}
+
+검증 필요 항목이 없으면 "검증 필요 항목 없음"이라고만 답하세요.`
+                }]
+              })
+            })
+            
+            const extractData = await extractResponse.json()
+            const factsText = extractData.content?.[0]?.text || ''
+            
+            if (factsText.includes('검증 필요 항목 없음')) continue
+            
+            // 각 팩트 검색 및 검증
+            const factLines = factsText.split('\n').filter((line: string) => line.includes('|') && line.includes('[P'))
+            
+            for (const line of factLines) {
+              const parts = line.split('|')
+              if (parts.length < 2) continue
+              
+              const blockIdMatch = line.match(/\[P(\d+)B(\d+)\]/)
+              if (!blockIdMatch) continue
+              
+              const pageIdx = parseInt(blockIdMatch[1])
+              const blockIdx = parseInt(blockIdMatch[2])
+              const keyword = parts[1].trim()
+              
+              // Serper 검색
+              const searchResult = await searchWithSerper(keyword)
+              if (!searchResult) continue
+              
+              // Claude로 검증 및 수정
+              const verifyResponse = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': apiKey,
+                  'anthropic-version': '2023-06-01',
+                  'anthropic-dangerous-direct-browser-access': 'true'
+                },
+                body: JSON.stringify({
+                  model: 'claude-sonnet-4-20250514',
+                  max_tokens: 1000,
+                  messages: [{
+                    role: 'user',
+                    content: `원문: ${finalPages[pageIdx]?.blocks[blockIdx]?.content || ''}
+
+검색결과: ${searchResult}
+
+원문이 정확하면 "정확함"만 답하세요.
+틀렸다면 수정된 전체 문장만 답하세요 (다른 설명 없이 수정된 문장만).`
+                  }]
+                })
+              })
+              
+              const verifyData = await verifyResponse.json()
+              const result = verifyData.content?.[0]?.text?.trim() || ''
+              
+              // 수정 필요한 경우 자동 적용
+              if (result && !result.includes('정확함') && finalPages[pageIdx]?.blocks[blockIdx]) {
+                finalPages[pageIdx].blocks[blockIdx].content = result
+                correctionCount++
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 500))
+            }
+          }
+          
+          if (correctionCount > 0) {
+            setPages([...finalPages])
+            console.log(`자동 팩트체크: ${correctionCount}건 수정됨`)
+          }
+        } catch (factCheckError) {
+          console.error('자동 팩트체크 오류:', factCheckError)
+        }
+      }
+      
       saveToHistory(finalPages)
 
     } catch (e) {
@@ -3353,21 +3555,19 @@ ${tocText}
                 </div>
               </div>
               
-              {/* 톤앤무드 설정 */}
               <div className="section-block">
-                <h3 className="section-label">🎨 톤앤무드</h3>
-                <select 
-                  value={bookTone} 
-                  onChange={(e) => setBookTone(e.target.value)}
-                  className="tone-select"
-                >
-                  <option value="professional">💼 전문적/비즈니스</option>
-                  <option value="friendly">😊 친근한/대화체</option>
-                  <option value="academic">📚 학술적/교육적</option>
-                  <option value="casual">🎉 캐주얼/유머러스</option>
-                  <option value="inspiring">✨ 영감을 주는/동기부여</option>
-                  <option value="storytelling">📖 스토리텔링/서사적</option>
-                </select>
+                <h3 className="section-label">🔍 팩트체크</h3>
+                <div className="extra-sections">
+                  <label className="checkbox-label" title="Serper API로 실시간 검색 후 정확한 정보로 작성 + 자동 검토">
+                    <input 
+                      type="checkbox" 
+                      checked={useFactBasedWriting} 
+                      onChange={(e) => setUseFactBasedWriting(e.target.checked)}
+                      disabled={!serperApiKey}
+                    />
+                    <span>팩트 기반 작성 {!serperApiKey && '(Serper API 키 필요)'}</span>
+                  </label>
+                </div>
               </div>
               
               {/* 컬러 설정 */}
@@ -3388,30 +3588,6 @@ ${tocText}
                       type="color"
                       value={mainColor}
                       onChange={(e) => setMainColor(e.target.value)}
-                      className="color-picker-input"
-                    />
-                    <span className="color-picker-icon">+</span>
-                  </label>
-                </div>
-              </div>
-              
-              <div className="section-block">
-                <h3 className="section-label">✨ 강조 컬러</h3>
-                <div className="color-palette">
-                  {PRESET_ACCENT_COLORS.map(({ color, name }) => (
-                    <button
-                      key={color}
-                      className={`color-swatch ${accentColor === color ? 'active' : ''}`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setAccentColor(color)}
-                      title={name}
-                    />
-                  ))}
-                  <label className="color-picker-wrapper" title="커스텀 컬러">
-                    <input
-                      type="color"
-                      value={accentColor}
-                      onChange={(e) => setAccentColor(e.target.value)}
                       className="color-picker-input"
                     />
                     <span className="color-picker-icon">+</span>
@@ -3471,18 +3647,15 @@ ${tocText}
           </div>
 
           <div className="generate-buttons">
-            <button onClick={generateContent} disabled={isLoading} className="btn btn-primary btn-full">
-              {isLoading && generationProgress.total === 0 ? (<><span className="spinner-small"></span>생성 중...</>) : '✨ 빠른 생성'}
-            </button>
             <button 
               onClick={generateByChapters} 
               disabled={isLoading || tocItems.filter(ch => ch.title.trim()).length === 0} 
               className="btn btn-success btn-full"
-              title="목차별로 나눠서 생성 (긴 콘텐츠용)"
+              title="목차별로 나눠서 생성"
             >
               {isLoading && generationProgress.total > 0 ? (
                 <><span className="spinner-small"></span>{generationProgress.current}/{generationProgress.total} 생성 중</>
-              ) : '📚 챕터별 생성'}
+              ) : '📚 전자책 생성'}
             </button>
           </div>
           {isLoading && generationProgress.chapterName && (
