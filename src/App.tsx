@@ -3164,7 +3164,7 @@ ${tocText}
                   <button 
                     className="btn btn-success"
                     onClick={() => {
-                      factCheckResults.forEach((_, idx) => applyFactCheckCorrection(0))
+                      factCheckResults.forEach(() => applyFactCheckCorrection(0))
                     }}
                   >
                     ✓ 모두 적용
