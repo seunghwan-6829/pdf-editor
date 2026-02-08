@@ -251,17 +251,6 @@ const PRESET_MAIN_COLORS = [
   { color: '#4338ca', name: '인디고' },
 ]
 
-const PRESET_ACCENT_COLORS = [
-  { color: '#be123c', name: '로즈' },
-  { color: '#dc2626', name: '레드' },
-  { color: '#ea580c', name: '오렌지' },
-  { color: '#ca8a04', name: '옐로우' },
-  { color: '#16a34a', name: '그린' },
-  { color: '#0891b2', name: '시안' },
-  { color: '#7c3aed', name: '퍼플' },
-  { color: '#c026d3', name: '핑크' },
-]
-
 let blockIdCounter = 0
 const generateId = () => `block-${++blockIdCounter}`
 const generateProjectId = () => `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -327,9 +316,6 @@ export default function App() {
   const [includePrologue, setIncludePrologue] = useState(false)
   const [includeToc, setIncludeToc] = useState(false)
   const [includeEpilogue, setIncludeEpilogue] = useState(false)
-  
-  // 톤앤무드 설정
-  const [bookTone, setBookTone] = useState('professional')  // professional, friendly, academic, casual
   
   // 컬러 설정
   const [mainColor, setMainColor] = useState('#1e3a5f')  // 메인 컬러 (기본: 네이비)
@@ -1742,148 +1728,6 @@ ${currentContent.slice(0, 500)}...
       setError(e instanceof Error ? e.message : 'AI 재생성 실패')
     } finally {
       setIsAiEditing(false)
-    }
-  }
-
-  // AI 콘텐츠 생성 (기존 - 한번에)
-  const generateContent = async () => {
-    if (!apiKey.trim()) {
-      setError('API 키를 입력해주세요')
-      setShowApiKey(true)
-      return
-    }
-    if (!prompt.trim()) {
-      setError('내용을 입력해주세요')
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-    setPages([])
-    setCurrentPageIndex(0)
-    setHistory([])
-    setHistoryIndex(-1)
-
-    let userPrompt = prompt
-
-    if (mode === 'ebook' && bookTitle) {
-      const tocText = getTocText()
-      
-      userPrompt = `프리미엄 전자책을 작성해주세요. 베스트셀러 수준의 퀄리티와 깊이로 작성합니다.
-
-【책 정보】
-제목: ${bookTitle}
-주제: ${prompt}
-
-${tocText ? `【목차 구조 - 이 순서대로 작성】
-${tocText}
-
-위 목차의 각 항목을 순서대로 상세하게 작성해주세요.` : (chapters ? `챕터 구성: ${chapters}` : '')}
-
-【핵심 작성 원칙 - 매우 중요】
-1. **풍부한 설명**: 모든 개념은 3-4문장 이상으로 상세히 설명
-2. **구체적인 예시**: 추상적 설명 후 반드시 실제 예시 추가
-3. **데이터/통계**: 신뢰성 있는 수치와 연구 결과 인용
-4. **단계별 설명**: 방법론은 구체적인 스텝으로 분해
-5. **독자 공감**: "~한 경험이 있으신가요?"처럼 독자 참여 유도
-
-【콜아웃 활용 (> 기호 사용)】
-- > 💡 팁: 실용적인 조언
-- > 중요: 핵심 포인트 강조
-- > 예시: 구체적인 사례
-- > 데이터: 통계나 연구 결과
-- > 참고: 추가 정보
-
-【문단 구성】
-- 서론: 왜 이 주제가 중요한지 (독자의 문제점 공감)
-- 본론: 해결책을 상세히 설명 (예시, 데이터 포함)
-- 결론: 핵심 요약 + 실천 방안
-
-【형식】
-- # 책 제목 (맨 처음 한 번)
-- ## 챕터 제목
-- ### 소제목
-- > 콜아웃 박스
-- **굵게** 키워드 강조
-- 목록 - 또는 1. 2. 3.
-
-【다양한 레이아웃 요소 필수 사용!】
-- > 콜아웃: 팁, 중요, 예시, 데이터, 참고 (소제목당 2-3개)
-- [STEP 1] [STEP 2] [STEP 3]: 단계별 설명 (방법론/과정에 사용)
-- [SUMMARY] 핵심 요약: 섹션 끝에 요약 박스
-- [QUOTE] 인용구: 인상적인 문장이나 명언
-- [x] 체크리스트: 할 일, 준비물, 점검 항목
-- [HIGHLIGHT] 하이라이트: 특별히 강조할 핵심
-- [IMAGE: 설명] 이미지 영역 (챕터당 3-5개)
-- --- 구분선: 섹션 구분
-- 목록(-): 세부 정보 정리
-
-【절대 금지】
-- 코드 블록 사용 금지
-
-【분량 기준】
-- 각 소제목(###) 아래 4-6개 문단
-- 문단 사이 빈 줄로 구분
-
-다양한 레이아웃 요소를 적극 활용해 시각적으로 풍부한 콘텐츠를 작성해주세요!`
-    }
-
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 16000,
-          stream: true,
-          system: '전문 전자책 작가입니다. Markdown 형식으로 간결하게 작성합니다.',
-          messages: [{ role: 'user', content: userPrompt }],
-        }),
-      })
-
-      if (!response.ok) throw new Error('API 오류')
-
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('스트리밍 실패')
-
-      const decoder = new TextDecoder()
-      let fullContent = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') continue
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                fullContent += parsed.delta.text
-                const newPages = parseMarkdownToPages(fullContent, previewSize)
-                setPages(newPages)
-              }
-            } catch {}
-          }
-        }
-      }
-      
-      const finalPages = parseMarkdownToPages(fullContent, previewSize)
-      saveToHistory(finalPages)
-      
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'API 호출 실패')
-    } finally {
-      setIsLoading(false)
     }
   }
 
