@@ -280,12 +280,6 @@ export default function App() {
   const [aiEditInstruction, setAiEditInstruction] = useState('')
   const [isAiEditing, setIsAiEditing] = useState(false)
   
-  // 팩트체크 검수 모달
-  const [showFactCheckModal, setShowFactCheckModal] = useState(false)
-  const [factCheckRange, setFactCheckRange] = useState({ start: 1, end: 10 })
-  const [isFactChecking, setIsFactChecking] = useState(false)
-  const [factCheckProgress, setFactCheckProgress] = useState({ current: 0, total: 0, status: '' })
-  const [factCheckResults, setFactCheckResults] = useState<{pageIndex: number; blockIndex: number; original: string; corrected: string; reason: string}[]>([])
   const [showSerperKey, setShowSerperKey] = useState(false)
   
   // PDF 다운로드 진행률
@@ -514,249 +508,6 @@ export default function App() {
     }
   }
   
-  // 팩트체크 실행
-  const runFactCheck = async () => {
-    if (!apiKey || !serperApiKey) {
-      setError('Claude API 키와 Serper API 키가 모두 필요합니다.')
-      return
-    }
-    
-    const startPage = Math.max(1, factCheckRange.start)
-    const endPage = Math.min(pages.length - 1, factCheckRange.end)
-    
-    if (startPage > endPage) {
-      setError('유효한 페이지 범위를 선택해주세요.')
-      return
-    }
-    
-    setIsFactChecking(true)
-    setFactCheckResults([])
-    setFactCheckProgress({ current: 0, total: endPage - startPage + 1, status: '검수 준비 중...' })
-    
-    try {
-      // 블록 정보를 정확히 저장하기 위해 블록 맵 생성
-      type BlockInfo = { pageIndex: number; blockIndex: number; content: string }
-      const blockMap: BlockInfo[] = []
-      
-      // 10페이지씩 묶어서 처리
-      const chunkSize = 10
-      const allResults: {pageIndex: number; blockIndex: number; original: string; corrected: string; reason: string}[] = []
-      
-      for (let i = startPage; i <= endPage; i += chunkSize) {
-        const chunkEnd = Math.min(i + chunkSize - 1, endPage)
-        setFactCheckProgress({ 
-          current: i - startPage, 
-          total: endPage - startPage + 1, 
-          status: `${i}~${chunkEnd} 페이지 분석 중...` 
-        })
-        
-        // 해당 페이지들의 텍스트 추출 - 블록 ID 포함
-        let chunkText = ''
-        const chunkBlocks: BlockInfo[] = []
-        
-        for (let p = i; p <= chunkEnd; p++) {
-          if (pages[p]) {
-            pages[p].blocks.forEach((block, bIdx) => {
-              if (block.type === 'text' || block.type === 'heading') {
-                const blockId = `[P${p}B${bIdx}]`
-                chunkText += `${blockId} ${block.content}\n`
-                chunkBlocks.push({ pageIndex: p, blockIndex: bIdx, content: block.content })
-              }
-            })
-          }
-        }
-        
-        blockMap.push(...chunkBlocks)
-        
-        if (!chunkText.trim()) continue
-        
-        // 1단계: Claude로 검증 필요한 팩트 추출
-        setFactCheckProgress({ 
-          current: i - startPage, 
-          total: endPage - startPage + 1, 
-          status: `${i}~${chunkEnd} 페이지 팩트 추출 중...` 
-        })
-        
-        const extractResponse = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 2000,
-            messages: [{
-              role: 'user',
-              content: `다음 텍스트에서 사실 검증이 필요한 문장을 최대 5개 추출해주세요.
-숫자, 통계, 날짜, 역사적 사실, 과학적 주장 등 객관적으로 검증 가능한 내용만 추출하세요.
-
-각 항목은 [P숫자B숫자] 형식의 블록ID와 함께 표시되어 있습니다.
-
-각 항목은 다음 형식으로:
-[P숫자B숫자] 검증필요문장 | 검색키워드
-
-텍스트:
-${chunkText}
-
-검증이 필요한 문장이 없으면 "검증 필요 항목 없음"이라고 답하세요.`
-            }]
-          })
-        })
-        
-        const extractData = await extractResponse.json()
-        const factsText = extractData.content?.[0]?.text || ''
-        
-        if (factsText.includes('검증 필요 항목 없음')) continue
-        
-        // 팩트 파싱
-        const factLines = factsText.split('\n').filter((line: string) => line.includes('|') && line.includes('[P'))
-        
-        // 2단계: 각 팩트를 Serper로 검색
-        const searchResults: {fact: string; searchResult: string; blockId: string}[] = []
-        
-        for (const line of factLines) {
-          const parts = line.split('|')
-          if (parts.length < 2) continue
-          
-          const fact = parts[0].trim()
-          const keyword = parts[1].trim()
-          const blockIdMatch = fact.match(/\[P(\d+)B(\d+)\]/)
-          const blockId = blockIdMatch ? `P${blockIdMatch[1]}B${blockIdMatch[2]}` : ''
-          
-          if (!blockId) continue
-          
-          setFactCheckProgress({ 
-            current: i - startPage, 
-            total: endPage - startPage + 1, 
-            status: `검색 중: ${keyword.slice(0, 30)}...` 
-          })
-          
-          const searchResult = await searchWithSerper(keyword)
-          searchResults.push({ fact, searchResult, blockId })
-          
-          // API 레이트 리밋 방지
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
-        
-        if (searchResults.length === 0) continue
-        
-        // 3단계: Claude로 검색 결과와 비교하여 검증
-        setFactCheckProgress({ 
-          current: i - startPage, 
-          total: endPage - startPage + 1, 
-          status: `${i}~${chunkEnd} 페이지 검증 중...` 
-        })
-        
-        const verifyPrompt = searchResults.map(r => 
-          `블록ID: ${r.blockId}\n원문: ${r.fact}\n검색결과:\n${r.searchResult}`
-        ).join('\n\n---\n\n')
-        
-        const verifyResponse = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 3000,
-            messages: [{
-              role: 'user',
-              content: `다음 원문들을 검색 결과와 비교하여 사실 여부를 검증해주세요.
-틀린 내용이 있으면 수정안을 제시해주세요.
-
-각 항목마다 다음 형식으로 답변 (형식을 정확히 지켜주세요):
-블록ID: P숫자B숫자
-판정: 정확함 또는 수정필요
-원문: (원문 내용 그대로)
-수정문: (수정이 필요하면 수정된 문장, 정확하면 "없음")
-이유: (판정 이유)
----
-
-${verifyPrompt}`
-            }]
-          })
-        })
-        
-        const verifyData = await verifyResponse.json()
-        const verifyText = verifyData.content?.[0]?.text || ''
-        
-        // 수정 필요한 항목만 추출
-        const sections = verifyText.split('---').filter((s: string) => s.includes('수정필요'))
-        
-        for (const section of sections) {
-          const blockIdMatch = section.match(/블록ID:\s*P(\d+)B(\d+)/)
-          const correctedMatch = section.match(/수정문:\s*(.+?)(?=이유:|$)/s)
-          const reasonMatch = section.match(/이유:\s*(.+?)(?=---|$)/s)
-          
-          if (blockIdMatch && correctedMatch && correctedMatch[1].trim() !== '없음') {
-            const pageIndex = parseInt(blockIdMatch[1])
-            const blockIndex = parseInt(blockIdMatch[2])
-            
-            // 실제 블록 내용 가져오기
-            const actualBlock = pages[pageIndex]?.blocks[blockIndex]
-            
-            if (actualBlock) {
-              allResults.push({
-                pageIndex,
-                blockIndex,
-                original: actualBlock.content, // 실제 블록 내용 저장
-                corrected: correctedMatch[1].trim(),
-                reason: reasonMatch?.[1]?.trim() || ''
-              })
-            }
-          }
-        }
-      }
-      
-      setFactCheckResults(allResults)
-      setFactCheckProgress({ 
-        current: endPage - startPage + 1, 
-        total: endPage - startPage + 1, 
-        status: allResults.length > 0 ? `검수 완료! ${allResults.length}건 수정 필요` : '검수 완료! 수정 필요 없음' 
-      })
-      
-    } catch (e) {
-      console.error('Fact check error:', e)
-      setError('팩트체크 중 오류가 발생했습니다.')
-    } finally {
-      setIsFactChecking(false)
-    }
-  }
-  
-  // 검수 결과 적용
-  const applyFactCheckCorrection = (index: number) => {
-    const result = factCheckResults[index]
-    if (!result) return
-    
-    const newPages = [...pages]
-    const targetBlock = newPages[result.pageIndex]?.blocks[result.blockIndex]
-    
-    if (targetBlock) {
-      // 정확한 블록을 직접 수정
-      targetBlock.content = result.corrected
-      
-      setPages(newPages)
-      saveToHistory(newPages)
-      
-      // 해당 페이지로 이동 (실시간 확인)
-      setCurrentPageIndex(result.pageIndex)
-      
-      // 적용된 항목 제거
-      setFactCheckResults(prev => prev.filter((_, i) => i !== index))
-      
-      // 모달은 열어둔 채로 유지 (다른 수정사항도 적용할 수 있도록)
-    } else {
-      alert('❌ 해당 블록을 찾을 수 없습니다.')
-      setFactCheckResults(prev => prev.filter((_, i) => i !== index))
-    }
-  }
-
   const currentPage = pages[currentPageIndex]
   const previewSize = getPreviewSize(pageSize)
 
@@ -1302,7 +1053,16 @@ ${verifyPrompt}`
             body: JSON.stringify({
               model: 'claude-sonnet-4-20250514',
               max_tokens: 16000,
-              system: '프리미엄 전자책 전문 작가입니다. 현재는 2026년입니다. 독자에게 실질적 가치를 주는 깊이 있고 풍부한 콘텐츠를 작성합니다. 절대 요약하지 않고, 각 주제를 철저히 다룹니다. 2026년 기준 최신 정보를 반영하세요.',
+              system: `프리미엄 전자책 전문 작가입니다. 현재는 2026년 2월입니다.
+
+【데이터 정확성 필수 준수사항】
+- 모든 숫자, 통계, 날짜, 비율, 금액은 반드시 검증된 정보만 사용
+- 출처가 불확실한 수치는 절대 작성하지 않음
+- 추정치나 예측은 반드시 "약", "추정", "예상" 등 명시
+- 2026년 기준 최신 정보 사용 (2024년 이전 데이터는 구식으로 간주)
+- 확인되지 않은 정보는 "~로 알려져 있다", "~라는 의견이 있다" 등으로 표현
+
+독자에게 실질적 가치를 주는 깊이 있고 풍부한 콘텐츠를 작성합니다. 절대 요약하지 않고, 각 주제를 철저히 다룹니다.`,
               messages: [{ role: 'user', content: `${draftPrompt}
 
 【참고 자료 - 이 정보를 정확히 반영하여 작성】
@@ -1372,10 +1132,17 @@ ${combinedResearch}
             body: JSON.stringify({
               model: 'claude-sonnet-4-20250514',
               max_tokens: 2000,
-              messages: [{ role: 'user', content: `[현재: 2026년]
+              messages: [{ role: 'user', content: `[현재: 2026년 2월]
 
-다음 텍스트에서 숫자, 통계, 날짜, 고유명사 등 검증이 필요한 사실 최대 5개를 추출하세요.
-특히 2025년 이전 데이터는 최신 2026년 데이터로 업데이트가 필요할 수 있으니 검증 대상에 포함하세요.
+다음 텍스트에서 검증이 반드시 필요한 사실을 최대 7개 추출하세요.
+
+【필수 검증 대상】
+- 모든 숫자와 통계 (%, 금액, 수량 등)
+- 날짜와 연도 (특히 2024년 이전 데이터)
+- 회사명, 제품명, 인물명 등 고유명사
+- 법률, 규정, 정책 관련 내용
+- 시장 규모, 성장률 등 경제 지표
+
 각 항목은: 원문문장 | 검색키워드 형식으로
 
 텍스트:
@@ -1447,19 +1214,22 @@ ${draftContent}
                   body: JSON.stringify({
                     model: 'claude-sonnet-4-20250514',
                     max_tokens: 500,
-                    messages: [{ role: 'user', content: `[현재: 2026년]
+                    messages: [{ role: 'user', content: `[현재: 2026년 2월]
 
 원문: ${originalFact}
 
 검색결과 (3개 최신 소스):
 ${verifyResults.join('\n---\n')}
 
-위 검색결과들을 종합하여 다음을 판단하세요:
-1. 원문의 정보가 정확한지
-2. 2026년 기준 최신 정보인지 (오래된 정보면 최신으로 업데이트)
+【엄격한 검증 기준】
+1. 숫자/통계: 검색결과와 10% 이상 차이나면 수정
+2. 연도: 2024년 이전 데이터면 최신으로 업데이트
+3. 고유명사: 철자나 명칭이 정확한지 확인
+4. 출처 신뢰도: 공식 기관, 언론사 자료 우선
 
 정확하고 최신이면 "정확함"만 답하세요.
-틀렸거나 오래된 정보면 "수정: (2026년 기준 최신 정확한 문장)"만 답하세요.` }],
+틀렸거나 오래되거나 불확실하면 "수정: (검색결과 기반 정확한 문장)"만 답하세요.
+검증 불가시 "수정: (확인된 바에 따르면 ~로 알려져 있다)" 형태로 수정하세요.` }],
                   }),
                 })
                 
@@ -3190,9 +2960,6 @@ ${currentContent.slice(0, 500)}...
           <button onClick={() => setIsEditing(!isEditing)} disabled={pages.length === 0} className={`btn btn-sm ${isEditing ? 'btn-warning' : 'btn-secondary'}`}>
             {isEditing ? '✓ 완료' : '✏️ 편집'}
           </button>
-          <button onClick={() => { setFactCheckRange({ start: 1, end: Math.max(1, pages.length - 1) }); setShowFactCheckModal(true) }} disabled={pages.length <= 1 || isFactChecking} className="btn btn-sm btn-warning">
-            {isFactChecking ? `🔍 ${factCheckProgress.current}/${factCheckProgress.total}` : '🔍 검수'}
-          </button>
           <button onClick={openExportModal} disabled={pages.length <= 1 || isDownloadingPdf} className="btn btn-sm btn-success">
             {isDownloadingPdf ? `📥 ${pdfProgress.current}/${pdfProgress.total}` : '📥 PDF'}
           </button>
@@ -3275,154 +3042,6 @@ ${currentContent.slice(0, 500)}...
                 >
                   전체 다운로드
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 팩트체크 검수 모달 */}
-      {showFactCheckModal && (
-        <div className="modal-overlay" onClick={() => !isFactChecking && setShowFactCheckModal(false)}>
-          <div className="modal factcheck-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>🔍 팩트체크 검수</h3>
-              <button className="modal-close" onClick={() => !isFactChecking && setShowFactCheckModal(false)} disabled={isFactChecking}>✕</button>
-            </div>
-            <div className="modal-body">
-              {/* Serper API 키 설정 */}
-              <div className="form-group">
-                <label>Serper API 키</label>
-                <div className="api-key-input">
-                  <input
-                    type={showSerperKey ? 'text' : 'password'}
-                    value={serperApiKey}
-                    onChange={(e) => setSerperApiKey(e.target.value)}
-                    placeholder="Serper API 키 입력"
-                  />
-                  <button onClick={() => setShowSerperKey(!showSerperKey)} className="btn btn-sm">
-                    {showSerperKey ? '🙈' : '👁️'}
-                  </button>
-                  <button onClick={saveSerperApiKey} className="btn btn-sm btn-primary">저장</button>
-                </div>
-              </div>
-              
-              {/* 페이지 범위 선택 */}
-              <div className="form-group">
-                <label>검수 범위 (총 {pages.length - 1}페이지)</label>
-                <div className="range-inputs">
-                  <input
-                    type="number"
-                    min="1"
-                    max={pages.length - 1}
-                    value={factCheckRange.start}
-                    onChange={(e) => setFactCheckRange(prev => ({ ...prev, start: parseInt(e.target.value) || 1 }))}
-                    disabled={isFactChecking}
-                  />
-                  <span>~</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={pages.length - 1}
-                    value={factCheckRange.end}
-                    onChange={(e) => setFactCheckRange(prev => ({ ...prev, end: parseInt(e.target.value) || 1 }))}
-                    disabled={isFactChecking}
-                  />
-                  <span>페이지</span>
-                </div>
-                <p className="range-info">
-                  {factCheckRange.end - factCheckRange.start + 1}페이지 검수 예정 
-                  (약 {Math.ceil((factCheckRange.end - factCheckRange.start + 1) / 10)}회 API 호출)
-                </p>
-              </div>
-              
-              {/* 진행 상황 */}
-              {isFactChecking && (
-                <div className="factcheck-progress">
-                  <div className="progress-bar">
-                    <div 
-                      className="progress-fill" 
-                      style={{ width: `${(factCheckProgress.current / factCheckProgress.total) * 100}%` }}
-                    />
-                  </div>
-                  <p>{factCheckProgress.status}</p>
-                </div>
-              )}
-              
-              {/* 검수 결과 */}
-              {factCheckResults.length > 0 && (
-                <div className="factcheck-results">
-                  <h4>📝 수정 필요 항목 ({factCheckResults.length}건)</h4>
-                  <div className="results-list">
-                    {factCheckResults.map((result, idx) => (
-                      <div key={idx} className="result-item">
-                        <div className="result-page">📄 {result.pageIndex}페이지</div>
-                        <div className="result-original">
-                          <span className="label">원문:</span>
-                          <span className="text">{result.original.slice(0, 100)}{result.original.length > 100 ? '...' : ''}</span>
-                        </div>
-                        <div className="result-corrected">
-                          <span className="label">수정:</span>
-                          <span className="text">{result.corrected.slice(0, 100)}{result.corrected.length > 100 ? '...' : ''}</span>
-                        </div>
-                        <div className="result-reason">
-                          <span className="label">이유:</span>
-                          <span className="text">{result.reason}</span>
-                        </div>
-                        <button 
-                          className="btn btn-sm btn-primary"
-                          onClick={() => applyFactCheckCorrection(idx)}
-                        >
-                          ✓ 적용
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* 실행 버튼 */}
-              <div className="factcheck-actions">
-                <button 
-                  className="btn btn-primary"
-                  onClick={runFactCheck}
-                  disabled={isFactChecking || !serperApiKey}
-                >
-                  {isFactChecking ? '검수 중...' : '🔍 검수 시작'}
-                </button>
-                {factCheckResults.length > 0 && (
-                  <button 
-                    className="btn btn-success"
-                    onClick={() => {
-                      // 모든 수정을 한 번에 적용 - 정확한 블록 인덱스 사용
-                      const newPages = [...pages]
-                      let appliedCount = 0
-                      let lastPageIndex = currentPageIndex
-                      
-                      factCheckResults.forEach(result => {
-                        // 정확한 블록 위치로 직접 수정
-                        const targetBlock = newPages[result.pageIndex]?.blocks[result.blockIndex]
-                        if (targetBlock) {
-                          targetBlock.content = result.corrected
-                          appliedCount++
-                          lastPageIndex = result.pageIndex
-                        }
-                      })
-                      
-                      if (appliedCount > 0) {
-                        setPages(newPages)
-                        saveToHistory(newPages)
-                        setCurrentPageIndex(lastPageIndex)
-                        setFactCheckResults([])
-                        alert(`✅ ${appliedCount}건의 수정이 적용되었습니다!`)
-                      } else {
-                        alert('❌ 적용할 수 있는 항목이 없습니다.')
-                      }
-                    }}
-                  >
-                    ✓ 모두 적용
-                  </button>
-                )}
               </div>
             </div>
           </div>
