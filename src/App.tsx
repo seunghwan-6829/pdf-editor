@@ -3185,8 +3185,42 @@ ${currentContent.slice(0, 500)}...
                       onChange={(e) => setUseFactBasedWriting(e.target.checked)}
                       disabled={!serperApiKey}
                     />
-                    <span>팩트 기반 작성 {!serperApiKey && '(Serper API 키 필요)'}</span>
+                    <span>팩트 기반 작성 {!serperApiKey && '(API 키 필요)'}</span>
                   </label>
+                  {/* Serper API 키 입력 */}
+                  <div className="serper-key-input" style={{ marginTop: '8px' }}>
+                    <input
+                      type={showSerperKey ? 'text' : 'password'}
+                      value={serperApiKey}
+                      onChange={(e) => setSerperApiKey(e.target.value)}
+                      placeholder="Serper API 키"
+                      style={{ 
+                        width: '100%', 
+                        padding: '6px 8px', 
+                        fontSize: '11px',
+                        backgroundColor: '#2a2a3e',
+                        border: '1px solid #444',
+                        borderRadius: '4px',
+                        color: '#fff'
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                      <button 
+                        onClick={() => setShowSerperKey(!showSerperKey)} 
+                        className="btn btn-sm"
+                        style={{ fontSize: '10px', padding: '2px 6px' }}
+                      >
+                        {showSerperKey ? '🙈' : '👁️'}
+                      </button>
+                      <button 
+                        onClick={saveSerperApiKey} 
+                        className="btn btn-sm btn-primary"
+                        style={{ fontSize: '10px', padding: '2px 6px' }}
+                      >
+                        저장
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               
