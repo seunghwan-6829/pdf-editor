@@ -1250,11 +1250,11 @@ ${verifyPrompt}`
             await new Promise(resolve => setTimeout(resolve, 300))
           }
           
-          // 2단계: 초안 작성 (실시간 스트리밍으로 화면에 표시)
+          // ====== 2단계: 초안 작성 (백그라운드 - 화면에 안 보임) ======
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
-            chapterName: `📝 "${searchTopic}" 초안 작성 중...` 
+            chapterName: `📝 "${searchTopic}" 초안 작성 중... (백그라운드)` 
           })
           
           const draftPrompt = item.subTitle 
@@ -1272,7 +1272,6 @@ ${verifyPrompt}`
             body: JSON.stringify({
               model: 'claude-sonnet-4-20250514',
               max_tokens: 16000,
-              stream: true,  // 스트리밍 활성화
               system: '프리미엄 전자책 전문 작가입니다. 독자에게 실질적 가치를 주는 깊이 있고 풍부한 콘텐츠를 작성합니다. 절대 요약하지 않고, 각 주제를 철저히 다룹니다.',
               messages: [{ role: 'user', content: `${draftPrompt}
 
@@ -1308,43 +1307,14 @@ ${combinedResearch}
           })
           
           if (!draftResponse.ok) throw new Error('초안 작성 실패')
+          const draftData = await draftResponse.json()
+          let draftContent = draftData.content?.[0]?.text || ''
           
-          // 스트리밍으로 초안 실시간 표시
-          const draftReader = draftResponse.body?.getReader()
-          if (!draftReader) throw new Error('스트리밍 실패')
-          
-          const draftDecoder = new TextDecoder()
-          let draftContent = ''
-          
-          while (true) {
-            const { done, value } = await draftReader.read()
-            if (done) break
-            
-            const chunk = draftDecoder.decode(value)
-            const lines = chunk.split('\n')
-            
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6)
-                if (data === '[DONE]') continue
-                try {
-                  const parsed = JSON.parse(data)
-                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                    draftContent += parsed.delta.text
-                    // 실시간으로 화면에 표시
-                    const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + draftContent, previewSize)
-                    setPages(newPages)
-                  }
-                } catch {}
-              }
-            }
-          }
-          
-          // 3단계: 초안에서 검증 필요한 팩트 추출 및 교차 검증
+          // ====== 3단계: 교차 검증 (백그라운드 - 화면에 안 보임) ======
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
-            chapterName: `🔎 "${searchTopic}" 교차 검증 중...` 
+            chapterName: `🔎 "${searchTopic}" 교차 검증 중... (백그라운드)` 
           })
           
           const extractFactsResponse = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1381,13 +1351,13 @@ ${draftContent}
               const originalFact = parts[0].trim()
               const keyword = parts[1].trim()
               
-              // 3개 소스로 교차 검증
               setGenerationProgress({ 
                 current: i + 1, 
                 total: totalItems, 
-                chapterName: `🔎 "${keyword.slice(0, 20)}..." 교차 검증 중...` 
+                chapterName: `🔎 "${keyword.slice(0, 20)}..." 검증 중...` 
               })
               
+              // 3개 소스로 교차 검증
               const verifyResults: string[] = []
               const verifyQueries = [keyword, `${keyword} 사실`, `${keyword} 공식`]
               
@@ -1398,7 +1368,6 @@ ${draftContent}
               }
               
               if (verifyResults.length > 0) {
-                // Claude로 교차 검증
                 const verifyResponse = await fetch('https://api.anthropic.com/v1/messages', {
                   method: 'POST',
                   headers: {
@@ -1423,32 +1392,35 @@ ${verifyResults.join('\n---\n')}
                 const verifyData = await verifyResponse.json()
                 const verifyResult = verifyData.content?.[0]?.text?.trim() || ''
                 
-                // 수정 필요시 초안 수정 + 실시간 화면 반영
+                // 수정 필요시 초안 수정 (백그라운드)
                 if (verifyResult.startsWith('수정:')) {
                   const correctedText = verifyResult.replace('수정:', '').trim()
                   draftContent = draftContent.replace(originalFact, correctedText)
-                  
-                  // 수정된 내용 실시간으로 화면에 반영
-                  setGenerationProgress({ 
-                    current: i + 1, 
-                    total: totalItems, 
-                    chapterName: `✏️ 수정 반영 중...` 
-                  })
-                  const updatedPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + draftContent, previewSize)
-                  setPages(updatedPages)
                 }
               }
             }
           }
           
-          sectionContent = draftContent
-          
-          // 4단계: 검증 완료 표시
+          // ====== 4단계: 검증 완료! 이제 실시간으로 화면에 표시 ======
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
-            chapterName: `✅ "${searchTopic}" 검증 완료!` 
+            chapterName: `✅ "${searchTopic}" 검증 완료! 화면에 표시 중...` 
           })
+          
+          // 검증된 콘텐츠를 타이핑 효과로 천천히 화면에 표시
+          const chars = draftContent.split('')
+          let displayedContent = ''
+          const chunkSize = 10  // 한 번에 10글자씩 표시 (속도 조절)
+          
+          for (let c = 0; c < chars.length; c += chunkSize) {
+            displayedContent += chars.slice(c, c + chunkSize).join('')
+            const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + displayedContent, previewSize)
+            setPages(newPages)
+            await new Promise(resolve => setTimeout(resolve, 5))  // 5ms 딜레이
+          }
+          
+          sectionContent = draftContent
           
         } else {
           // ========== 일반 모드 (스트리밍) ==========
