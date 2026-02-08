@@ -699,19 +699,66 @@ ${verifyPrompt}`
     if (!result) return
     
     const newPages = [...pages]
-    const pageBlocks = newPages[result.page]?.blocks
+    // result.page는 사용자가 보는 페이지 번호 (1-indexed)이므로 그대로 배열 인덱스로 사용
+    // pages[0]은 표지, pages[1]은 1페이지...로 구성되어 있으면 result.page가 맞음
+    // 하지만 안전하게 검색해서 찾기
+    let targetPageIndex = result.page
+    let found = false
     
+    // 해당 페이지에서 먼저 찾기
+    const pageBlocks = newPages[targetPageIndex]?.blocks
     if (pageBlocks) {
       for (const block of pageBlocks) {
-        if (block.content.includes(result.original.slice(0, 30))) {
+        // 원문 전체 또는 일부로 매칭
+        if (block.content.includes(result.original) || 
+            block.content.includes(result.original.slice(0, 50)) ||
+            result.original.includes(block.content.slice(0, 50))) {
           block.content = block.content.replace(result.original, result.corrected)
+          found = true
           break
         }
       }
+    }
+    
+    // 못 찾으면 전체 페이지에서 검색
+    if (!found) {
+      for (let i = 0; i < newPages.length; i++) {
+        const blocks = newPages[i]?.blocks
+        if (blocks) {
+          for (const block of blocks) {
+            if (block.content.includes(result.original) || 
+                block.content.includes(result.original.slice(0, 50))) {
+              block.content = block.content.replace(result.original, result.corrected)
+              targetPageIndex = i
+              found = true
+              break
+            }
+          }
+          if (found) break
+        }
+      }
+    }
+    
+    if (found) {
       setPages(newPages)
       saveToHistory(newPages)
       
+      // 해당 페이지로 이동
+      setCurrentPageIndex(targetPageIndex)
+      
+      // 모달 닫기 (실시간으로 수정 확인)
+      setShowFactCheckModal(false)
+      
       // 적용된 항목 제거
+      setFactCheckResults(prev => prev.filter((_, i) => i !== index))
+      
+      // 잠시 후 성공 알림
+      setTimeout(() => {
+        alert(`✅ ${targetPageIndex}페이지에 수정이 적용되었습니다!`)
+      }, 100)
+    } else {
+      alert('❌ 해당 텍스트를 찾을 수 없습니다. 이미 수정되었거나 페이지가 변경되었을 수 있습니다.')
+      // 찾지 못한 항목도 제거
       setFactCheckResults(prev => prev.filter((_, i) => i !== index))
     }
   }
@@ -3164,7 +3211,39 @@ ${tocText}
                   <button 
                     className="btn btn-success"
                     onClick={() => {
-                      factCheckResults.forEach(() => applyFactCheckCorrection(0))
+                      // 모든 수정을 한 번에 적용
+                      const newPages = [...pages]
+                      let appliedCount = 0
+                      let lastPageIndex = currentPageIndex
+                      
+                      factCheckResults.forEach(result => {
+                        // 해당 페이지에서 찾기
+                        const pageBlocks = newPages[result.page]?.blocks
+                        if (pageBlocks) {
+                          for (const block of pageBlocks) {
+                            if (block.content.includes(result.original) || 
+                                block.content.includes(result.original.slice(0, 50))) {
+                              block.content = block.content.replace(result.original, result.corrected)
+                              appliedCount++
+                              lastPageIndex = result.page
+                              break
+                            }
+                          }
+                        }
+                      })
+                      
+                      if (appliedCount > 0) {
+                        setPages(newPages)
+                        saveToHistory(newPages)
+                        setCurrentPageIndex(lastPageIndex)
+                        setShowFactCheckModal(false)
+                        setFactCheckResults([])
+                        setTimeout(() => {
+                          alert(`✅ ${appliedCount}건의 수정이 적용되었습니다!`)
+                        }, 100)
+                      } else {
+                        alert('❌ 적용할 수 있는 항목이 없습니다.')
+                      }
                     }}
                   >
                     ✓ 모두 적용
