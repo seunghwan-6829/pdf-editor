@@ -472,7 +472,7 @@ export default function App() {
         q: query + (recentOnly ? ' 2025 2026' : ''),  // 최신 연도 키워드 추가 (현재: 2026년)
         gl: 'kr', 
         hl: 'ko',
-        num: 10  // 더 많은 결과 가져오기
+        num: 15  // 더 많은 결과 가져오기
       }
       
       // 최신 정보만 검색 (최근 1년)
@@ -496,7 +496,7 @@ export default function App() {
         summary += `[지식그래프] ${data.knowledgeGraph.title || ''}: ${data.knowledgeGraph.description || ''}\n`
       }
       if (data.organic) {
-        data.organic.slice(0, 5).forEach((item: { title: string; snippet: string; date?: string }) => {
+        data.organic.slice(0, 10).forEach((item: { title: string; snippet: string; date?: string }) => {
           const dateInfo = item.date ? `[${item.date}]` : ''
           summary += `${dateInfo} ${item.title}: ${item.snippet}\n`
         })
@@ -979,10 +979,8 @@ export default function App() {
             stageProgress: 0,
             overallProgress: Math.round((i / totalItems) * 100),
             currentTask: `"${searchTopic}" 주제 자료 수집 시작`,
-            logs: [...prev.logs.slice(-20), `📚 [${item.chapterIdx + 1}장] "${searchTopic}" 작성 시작`],
-            sourcesFound: 0,
-            factsVerified: 0,
-            corrections: 0
+            logs: [...prev.logs.slice(-20), `📚 [${item.chapterIdx + 1}장] "${searchTopic}" 작성 시작`]
+            // sourcesFound, factsVerified, corrections는 누적됨
           }))
           
           // 1단계: 다중 소스로 자료 수집
@@ -992,15 +990,17 @@ export default function App() {
             chapterName: `🔍 "${searchTopic}" 자료 수집 중...` 
           })
           
-          // 3개의 다른 검색어로 최신 정보 복합 검색
+          // 5개의 다른 검색어로 최신 정보 복합 검색 (각 섹션당 5개)
           const searchQueries = [
             `${searchTopic} 최신 정의 개념 2025 2026`,
             `${searchTopic} 최신 통계 데이터 수치 2026`,
-            `${searchTopic} 최신 사례 예시 트렌드 2025 2026`
+            `${searchTopic} 최신 사례 예시 연구 2025 2026`,
+            `${searchTopic} 전망 예측 트렌드 2026`,
+            `${searchTopic} 장점 단점 비교 분석`
           ]
           
           let combinedResearch = ''
-          let sourcesCount = 0
+          let sectionSourcesCount = 0
           for (let qi = 0; qi < searchQueries.length; qi++) {
             const query = searchQueries[qi]
             setFactWritingProgress(prev => ({
@@ -1013,15 +1013,15 @@ export default function App() {
             const result = await searchWithSerper(query)
             if (result && result !== '검색 결과 없음') {
               combinedResearch += `\n【검색: ${query}】\n${result}\n`
-              sourcesCount += (result.match(/\n/g) || []).length
+              sectionSourcesCount += (result.match(/\n/g) || []).length
             }
             await new Promise(resolve => setTimeout(resolve, 300))
           }
           
           setFactWritingProgress(prev => ({
             ...prev,
-            sourcesFound: sourcesCount,
-            logs: [...prev.logs.slice(-20), `✅ ${sourcesCount}개 소스 수집 완료`]
+            sourcesFound: prev.sourcesFound + sectionSourcesCount,
+            logs: [...prev.logs.slice(-20), `✅ ${sectionSourcesCount}개 소스 수집 (총 ${prev.sourcesFound + sectionSourcesCount}개)`]
           }))
           
           // ====== 2단계: 초안 작성 (백그라운드 - 화면에 안 보임) ======
@@ -1260,8 +1260,8 @@ ${verifyResults.join('\n---\n')}
             
             setFactWritingProgress(prev => ({
               ...prev,
-              factsVerified: verifiedCount,
-              logs: [...prev.logs.slice(-20), `🎯 검증 완료: ${verifiedCount}개 중 ${correctionCount}개 수정됨`]
+              factsVerified: prev.factsVerified + verifiedCount,
+              logs: [...prev.logs.slice(-20), `🎯 검증 완료: ${verifiedCount}개 검증, ${correctionCount}개 수정 (총 ${prev.factsVerified + verifiedCount}개 검증)`]
             }))
           } else {
             setFactWritingProgress(prev => ({
@@ -3324,7 +3324,7 @@ ${currentContent.slice(0, 500)}...
           <div className="fact-writing-floating" style={{
             position: 'fixed',
             bottom: '20px',
-            right: '20px',
+            left: '320px',
             width: '380px',
             maxHeight: '500px',
             backgroundColor: '#1a1a2e',
