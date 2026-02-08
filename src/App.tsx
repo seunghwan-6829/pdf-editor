@@ -677,7 +677,6 @@ ${verifyPrompt}`
         
         for (const section of sections) {
           const blockIdMatch = section.match(/블록ID:\s*P(\d+)B(\d+)/)
-          const originalMatch = section.match(/원문:\s*(.+?)(?=수정문:|$)/s)
           const correctedMatch = section.match(/수정문:\s*(.+?)(?=이유:|$)/s)
           const reasonMatch = section.match(/이유:\s*(.+?)(?=---|$)/s)
           
