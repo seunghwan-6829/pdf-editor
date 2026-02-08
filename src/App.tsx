@@ -1250,7 +1250,7 @@ ${verifyPrompt}`
             await new Promise(resolve => setTimeout(resolve, 300))
           }
           
-          // 2단계: 초안 작성 (화면에 표시하지 않음)
+          // 2단계: 초안 작성 (실시간 스트리밍으로 화면에 표시)
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
@@ -1272,6 +1272,7 @@ ${verifyPrompt}`
             body: JSON.stringify({
               model: 'claude-sonnet-4-20250514',
               max_tokens: 8000,
+              stream: true,  // 스트리밍 활성화
               system: '전자책 작가입니다. 참고 자료를 바탕으로 정확한 정보만 작성합니다.',
               messages: [{ role: 'user', content: `${draftPrompt}
 
@@ -1290,8 +1291,37 @@ ${combinedResearch}
           })
           
           if (!draftResponse.ok) throw new Error('초안 작성 실패')
-          const draftData = await draftResponse.json()
-          let draftContent = draftData.content?.[0]?.text || ''
+          
+          // 스트리밍으로 초안 실시간 표시
+          const draftReader = draftResponse.body?.getReader()
+          if (!draftReader) throw new Error('스트리밍 실패')
+          
+          const draftDecoder = new TextDecoder()
+          let draftContent = ''
+          
+          while (true) {
+            const { done, value } = await draftReader.read()
+            if (done) break
+            
+            const chunk = draftDecoder.decode(value)
+            const lines = chunk.split('\n')
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                if (data === '[DONE]') continue
+                try {
+                  const parsed = JSON.parse(data)
+                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                    draftContent += parsed.delta.text
+                    // 실시간으로 화면에 표시
+                    const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + draftContent, previewSize)
+                    setPages(newPages)
+                  }
+                } catch {}
+              }
+            }
+          }
           
           // 3단계: 초안에서 검증 필요한 팩트 추출 및 교차 검증
           setGenerationProgress({ 
@@ -1376,10 +1406,19 @@ ${verifyResults.join('\n---\n')}
                 const verifyData = await verifyResponse.json()
                 const verifyResult = verifyData.content?.[0]?.text?.trim() || ''
                 
-                // 수정 필요시 초안 수정
+                // 수정 필요시 초안 수정 + 실시간 화면 반영
                 if (verifyResult.startsWith('수정:')) {
                   const correctedText = verifyResult.replace('수정:', '').trim()
                   draftContent = draftContent.replace(originalFact, correctedText)
+                  
+                  // 수정된 내용 실시간으로 화면에 반영
+                  setGenerationProgress({ 
+                    current: i + 1, 
+                    total: totalItems, 
+                    chapterName: `✏️ 수정 반영 중...` 
+                  })
+                  const updatedPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + draftContent, previewSize)
+                  setPages(updatedPages)
                 }
               }
             }
@@ -1387,15 +1426,12 @@ ${verifyResults.join('\n---\n')}
           
           sectionContent = draftContent
           
-          // 4단계: 검증 완료된 내용을 화면에 표시
+          // 4단계: 검증 완료 표시
           setGenerationProgress({ 
             current: i + 1, 
             total: totalItems, 
             chapterName: `✅ "${searchTopic}" 검증 완료!` 
           })
-          
-          const newPages = parseMarkdownToPages(allContent + (allContent ? '\n\n' : '') + sectionContent, previewSize)
-          setPages(newPages)
           
         } else {
           // ========== 일반 모드 (스트리밍) ==========
