@@ -272,7 +272,7 @@ export default function App() {
   const [factCheckRange, setFactCheckRange] = useState({ start: 1, end: 10 })
   const [isFactChecking, setIsFactChecking] = useState(false)
   const [factCheckProgress, setFactCheckProgress] = useState({ current: 0, total: 0, status: '' })
-  const [factCheckResults, setFactCheckResults] = useState<{page: number; original: string; corrected: string; reason: string}[]>([])
+  const [factCheckResults, setFactCheckResults] = useState<{pageIndex: number; blockIndex: number; original: string; corrected: string; reason: string}[]>([])
   const [showSerperKey, setShowSerperKey] = useState(false)
   
   // PDF 다운로드 진행률
@@ -520,9 +520,13 @@ export default function App() {
     setFactCheckProgress({ current: 0, total: endPage - startPage + 1, status: '검수 준비 중...' })
     
     try {
+      // 블록 정보를 정확히 저장하기 위해 블록 맵 생성
+      type BlockInfo = { pageIndex: number; blockIndex: number; content: string }
+      const blockMap: BlockInfo[] = []
+      
       // 10페이지씩 묶어서 처리
       const chunkSize = 10
-      const allResults: {page: number; original: string; corrected: string; reason: string}[] = []
+      const allResults: {pageIndex: number; blockIndex: number; original: string; corrected: string; reason: string}[] = []
       
       for (let i = startPage; i <= endPage; i += chunkSize) {
         const chunkEnd = Math.min(i + chunkSize - 1, endPage)
@@ -532,17 +536,23 @@ export default function App() {
           status: `${i}~${chunkEnd} 페이지 분석 중...` 
         })
         
-        // 해당 페이지들의 텍스트 추출
+        // 해당 페이지들의 텍스트 추출 - 블록 ID 포함
         let chunkText = ''
+        const chunkBlocks: BlockInfo[] = []
+        
         for (let p = i; p <= chunkEnd; p++) {
           if (pages[p]) {
-            const pageText = pages[p].blocks
-              .filter(b => b.type === 'text' || b.type === 'heading')
-              .map(b => b.content)
-              .join('\n')
-            chunkText += `\n[${p}페이지]\n${pageText}\n`
+            pages[p].blocks.forEach((block, bIdx) => {
+              if (block.type === 'text' || block.type === 'heading') {
+                const blockId = `[P${p}B${bIdx}]`
+                chunkText += `${blockId} ${block.content}\n`
+                chunkBlocks.push({ pageIndex: p, blockIndex: bIdx, content: block.content })
+              }
+            })
           }
         }
+        
+        blockMap.push(...chunkBlocks)
         
         if (!chunkText.trim()) continue
         
@@ -569,8 +579,10 @@ export default function App() {
               content: `다음 텍스트에서 사실 검증이 필요한 문장을 최대 5개 추출해주세요.
 숫자, 통계, 날짜, 역사적 사실, 과학적 주장 등 객관적으로 검증 가능한 내용만 추출하세요.
 
+각 항목은 [P숫자B숫자] 형식의 블록ID와 함께 표시되어 있습니다.
+
 각 항목은 다음 형식으로:
-[페이지번호] 원문 문장 | 검색 키워드
+[P숫자B숫자] 검증필요문장 | 검색키워드
 
 텍스트:
 ${chunkText}
@@ -586,10 +598,10 @@ ${chunkText}
         if (factsText.includes('검증 필요 항목 없음')) continue
         
         // 팩트 파싱
-        const factLines = factsText.split('\n').filter((line: string) => line.includes('|'))
+        const factLines = factsText.split('\n').filter((line: string) => line.includes('|') && line.includes('[P'))
         
         // 2단계: 각 팩트를 Serper로 검색
-        const searchResults: {fact: string; searchResult: string; pageNum: string}[] = []
+        const searchResults: {fact: string; searchResult: string; blockId: string}[] = []
         
         for (const line of factLines) {
           const parts = line.split('|')
@@ -597,8 +609,10 @@ ${chunkText}
           
           const fact = parts[0].trim()
           const keyword = parts[1].trim()
-          const pageMatch = fact.match(/\[(\d+)\]/)
-          const pageNum = pageMatch ? pageMatch[1] : '?'
+          const blockIdMatch = fact.match(/\[P(\d+)B(\d+)\]/)
+          const blockId = blockIdMatch ? `P${blockIdMatch[1]}B${blockIdMatch[2]}` : ''
+          
+          if (!blockId) continue
           
           setFactCheckProgress({ 
             current: i - startPage, 
@@ -607,7 +621,7 @@ ${chunkText}
           })
           
           const searchResult = await searchWithSerper(keyword)
-          searchResults.push({ fact, searchResult, pageNum })
+          searchResults.push({ fact, searchResult, blockId })
           
           // API 레이트 리밋 방지
           await new Promise(resolve => setTimeout(resolve, 500))
@@ -623,7 +637,7 @@ ${chunkText}
         })
         
         const verifyPrompt = searchResults.map(r => 
-          `원문: ${r.fact}\n검색결과:\n${r.searchResult}`
+          `블록ID: ${r.blockId}\n원문: ${r.fact}\n검색결과:\n${r.searchResult}`
         ).join('\n\n---\n\n')
         
         const verifyResponse = await fetch('https://api.anthropic.com/v1/messages', {
@@ -642,12 +656,12 @@ ${chunkText}
               content: `다음 원문들을 검색 결과와 비교하여 사실 여부를 검증해주세요.
 틀린 내용이 있으면 수정안을 제시해주세요.
 
-각 항목마다 다음 형식으로 답변:
-[페이지번호] 판정: 정확함/수정필요
-원문: (원문 내용)
-수정: (수정이 필요하면 수정된 문장, 정확하면 "없음")
+각 항목마다 다음 형식으로 답변 (형식을 정확히 지켜주세요):
+블록ID: P숫자B숫자
+판정: 정확함 또는 수정필요
+원문: (원문 내용 그대로)
+수정문: (수정이 필요하면 수정된 문장, 정확하면 "없음")
 이유: (판정 이유)
-
 ---
 
 ${verifyPrompt}`
@@ -659,21 +673,30 @@ ${verifyPrompt}`
         const verifyText = verifyData.content?.[0]?.text || ''
         
         // 수정 필요한 항목만 추출
-        const corrections = verifyText.split(/\[\d+\]/).filter((s: string) => s.includes('수정필요'))
+        const sections = verifyText.split('---').filter((s: string) => s.includes('수정필요'))
         
-        for (const correction of corrections) {
-          const pageMatch = correction.match(/페이지.*?(\d+)/) || verifyText.match(/\[(\d+)\].*?수정필요/)
-          const originalMatch = correction.match(/원문:\s*(.+?)(?=수정:|$)/s)
-          const correctedMatch = correction.match(/수정:\s*(.+?)(?=이유:|$)/s)
-          const reasonMatch = correction.match(/이유:\s*(.+?)(?=---|$)/s)
+        for (const section of sections) {
+          const blockIdMatch = section.match(/블록ID:\s*P(\d+)B(\d+)/)
+          const originalMatch = section.match(/원문:\s*(.+?)(?=수정문:|$)/s)
+          const correctedMatch = section.match(/수정문:\s*(.+?)(?=이유:|$)/s)
+          const reasonMatch = section.match(/이유:\s*(.+?)(?=---|$)/s)
           
-          if (originalMatch && correctedMatch && correctedMatch[1].trim() !== '없음') {
-            allResults.push({
-              page: parseInt(pageMatch?.[1] || '0'),
-              original: originalMatch[1].trim(),
-              corrected: correctedMatch[1].trim(),
-              reason: reasonMatch?.[1]?.trim() || ''
-            })
+          if (blockIdMatch && correctedMatch && correctedMatch[1].trim() !== '없음') {
+            const pageIndex = parseInt(blockIdMatch[1])
+            const blockIndex = parseInt(blockIdMatch[2])
+            
+            // 실제 블록 내용 가져오기
+            const actualBlock = pages[pageIndex]?.blocks[blockIndex]
+            
+            if (actualBlock) {
+              allResults.push({
+                pageIndex,
+                blockIndex,
+                original: actualBlock.content, // 실제 블록 내용 저장
+                corrected: correctedMatch[1].trim(),
+                reason: reasonMatch?.[1]?.trim() || ''
+              })
+            }
           }
         }
       }
@@ -699,66 +722,24 @@ ${verifyPrompt}`
     if (!result) return
     
     const newPages = [...pages]
-    // result.page는 사용자가 보는 페이지 번호 (1-indexed)이므로 그대로 배열 인덱스로 사용
-    // pages[0]은 표지, pages[1]은 1페이지...로 구성되어 있으면 result.page가 맞음
-    // 하지만 안전하게 검색해서 찾기
-    let targetPageIndex = result.page
-    let found = false
+    const targetBlock = newPages[result.pageIndex]?.blocks[result.blockIndex]
     
-    // 해당 페이지에서 먼저 찾기
-    const pageBlocks = newPages[targetPageIndex]?.blocks
-    if (pageBlocks) {
-      for (const block of pageBlocks) {
-        // 원문 전체 또는 일부로 매칭
-        if (block.content.includes(result.original) || 
-            block.content.includes(result.original.slice(0, 50)) ||
-            result.original.includes(block.content.slice(0, 50))) {
-          block.content = block.content.replace(result.original, result.corrected)
-          found = true
-          break
-        }
-      }
-    }
-    
-    // 못 찾으면 전체 페이지에서 검색
-    if (!found) {
-      for (let i = 0; i < newPages.length; i++) {
-        const blocks = newPages[i]?.blocks
-        if (blocks) {
-          for (const block of blocks) {
-            if (block.content.includes(result.original) || 
-                block.content.includes(result.original.slice(0, 50))) {
-              block.content = block.content.replace(result.original, result.corrected)
-              targetPageIndex = i
-              found = true
-              break
-            }
-          }
-          if (found) break
-        }
-      }
-    }
-    
-    if (found) {
+    if (targetBlock) {
+      // 정확한 블록을 직접 수정
+      targetBlock.content = result.corrected
+      
       setPages(newPages)
       saveToHistory(newPages)
       
-      // 해당 페이지로 이동
-      setCurrentPageIndex(targetPageIndex)
-      
-      // 모달 닫기 (실시간으로 수정 확인)
-      setShowFactCheckModal(false)
+      // 해당 페이지로 이동 (실시간 확인)
+      setCurrentPageIndex(result.pageIndex)
       
       // 적용된 항목 제거
       setFactCheckResults(prev => prev.filter((_, i) => i !== index))
       
-      // 잠시 후 성공 알림
-      setTimeout(() => {
-        alert(`✅ ${targetPageIndex}페이지에 수정이 적용되었습니다!`)
-      }, 100)
+      // 모달은 열어둔 채로 유지 (다른 수정사항도 적용할 수 있도록)
     } else {
-      alert('❌ 해당 텍스트를 찾을 수 없습니다. 이미 수정되었거나 페이지가 변경되었을 수 있습니다.')
-      // 찾지 못한 항목도 제거
+      alert('❌ 해당 블록을 찾을 수 없습니다.')
       setFactCheckResults(prev => prev.filter((_, i) => i !== index))
     }
   }
@@ -3173,14 +3154,14 @@ ${tocText}
                   <div className="results-list">
                     {factCheckResults.map((result, idx) => (
                       <div key={idx} className="result-item">
-                        <div className="result-page">📄 {result.page}페이지</div>
+                        <div className="result-page">📄 {result.pageIndex}페이지</div>
                         <div className="result-original">
                           <span className="label">원문:</span>
-                          <span className="text">{result.original}</span>
+                          <span className="text">{result.original.slice(0, 100)}{result.original.length > 100 ? '...' : ''}</span>
                         </div>
                         <div className="result-corrected">
                           <span className="label">수정:</span>
-                          <span className="text">{result.corrected}</span>
+                          <span className="text">{result.corrected.slice(0, 100)}{result.corrected.length > 100 ? '...' : ''}</span>
                         </div>
                         <div className="result-reason">
                           <span className="label">이유:</span>
@@ -3211,24 +3192,18 @@ ${tocText}
                   <button 
                     className="btn btn-success"
                     onClick={() => {
-                      // 모든 수정을 한 번에 적용
+                      // 모든 수정을 한 번에 적용 - 정확한 블록 인덱스 사용
                       const newPages = [...pages]
                       let appliedCount = 0
                       let lastPageIndex = currentPageIndex
                       
                       factCheckResults.forEach(result => {
-                        // 해당 페이지에서 찾기
-                        const pageBlocks = newPages[result.page]?.blocks
-                        if (pageBlocks) {
-                          for (const block of pageBlocks) {
-                            if (block.content.includes(result.original) || 
-                                block.content.includes(result.original.slice(0, 50))) {
-                              block.content = block.content.replace(result.original, result.corrected)
-                              appliedCount++
-                              lastPageIndex = result.page
-                              break
-                            }
-                          }
+                        // 정확한 블록 위치로 직접 수정
+                        const targetBlock = newPages[result.pageIndex]?.blocks[result.blockIndex]
+                        if (targetBlock) {
+                          targetBlock.content = result.corrected
+                          appliedCount++
+                          lastPageIndex = result.pageIndex
                         }
                       })
                       
@@ -3236,11 +3211,8 @@ ${tocText}
                         setPages(newPages)
                         saveToHistory(newPages)
                         setCurrentPageIndex(lastPageIndex)
-                        setShowFactCheckModal(false)
                         setFactCheckResults([])
-                        setTimeout(() => {
-                          alert(`✅ ${appliedCount}건의 수정이 적용되었습니다!`)
-                        }, 100)
+                        alert(`✅ ${appliedCount}건의 수정이 적용되었습니다!`)
                       } else {
                         alert('❌ 적용할 수 있는 항목이 없습니다.')
                       }
